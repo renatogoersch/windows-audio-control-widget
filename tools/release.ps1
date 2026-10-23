@@ -22,9 +22,19 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $tag = "v$Version"
 
-if ((git rev-parse --abbrev-ref HEAD) -ne 'main') { throw 'Releases are cut from main.' }
-if (git status --porcelain) { throw 'Commit or stash your changes first: the release commit must contain only the version.' }
-if (git tag --list $tag) { throw "Tag $tag already exists." }
+# Windows PowerShell 5.1 turns anything a native program writes to stderr (git's progress lines) into an error under
+# 'Stop'; so git runs with errors relaxed and its exit code decides.
+function Invoke-Git {
+  $previous = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try { $output = & git @args 2>&1 | ForEach-Object { "$_" } } finally { $ErrorActionPreference = $previous }
+  if ($LASTEXITCODE -ne 0) { throw "git $($args -join ' ') failed:`n$($output -join "`n")" }
+  $output
+}
+
+if ((Invoke-Git rev-parse --abbrev-ref HEAD) -ne 'main') { throw 'Releases are cut from main.' }
+if (Invoke-Git status --porcelain) { throw 'Commit or stash your changes first: the release commit must contain only the version.' }
+if (Invoke-Git tag --list $tag) { throw "Tag $tag already exists." }
 
 # Fails here, before anything is changed, when the changelog is missing.
 $notes = & (Join-Path $PSScriptRoot 'release-notes.ps1') -Version $Version
@@ -34,13 +44,13 @@ $xml = [IO.File]::ReadAllText($csproj)
 $updated = [regex]::Replace($xml, '<Version>[^<]*</Version>', "<Version>$Version</Version>")
 if ($updated -ne $xml) {
   [IO.File]::WriteAllText($csproj, $updated)
-  git add $csproj
-  git commit -m "Release $tag"
+  Invoke-Git add $csproj | Out-Null
+  Invoke-Git commit -m "Release $tag" | Out-Null
 }
 
-git tag -a $tag -m "SlotMixer $Version"
-git push origin main
-git push origin $tag
+Invoke-Git tag -a $tag -m "SlotMixer $Version" | Out-Null
+Invoke-Git push origin main | Out-Null
+Invoke-Git push origin $tag | Out-Null
 
 if ($Local) {
   & (Join-Path $PSScriptRoot 'build-zips.ps1') -ExpectVersion $Version
