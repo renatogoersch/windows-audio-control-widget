@@ -40,11 +40,7 @@ internal sealed partial class WidgetWindow : Window
     static readonly SlotAction[] SlotActions =
         { SlotAction.CycleOutput, SlotAction.VolumeUp, SlotAction.VolumeDown, SlotAction.ToggleMute };
 
-    static readonly Brush[] Palette =
-    {
-        Theme.Solid(0xFF60A5FA), Theme.Solid(0xFF34D399), Theme.Solid(0xFFFBBF24), Theme.Solid(0xFFF472B6),
-        Theme.Solid(0xFFA78BFA), Theme.Solid(0xFFFB923C), Theme.Solid(0xFF22D3EE), Theme.Solid(0xFFF87171),
-    };
+    static Brush[] Palette => Theme.Current.Palette;
 
     sealed class SlotRuntime
     {
@@ -103,13 +99,12 @@ internal sealed partial class WidgetWindow : Window
         // Invisible until the first Tick has docked it on the taskbar; otherwise it flashes at the screen corner.
         Opacity = 0;
 
-        Application.Current.Resources[typeof(ToolTip)] = BuildToolTipStyle();
-
         _header.Clicked += AddSlot;
         _header.ContextRequested += ShowHeaderMenu;
         _panel.Children.Add(_header);
         InitSystemSlot();
         RebuildSlots();
+        ApplyToolTipTheme();
 
         _box.BorderThickness = new Thickness(BoxBorder);
         _box.CornerRadius = new CornerRadius(8);
@@ -146,6 +141,7 @@ internal sealed partial class WidgetWindow : Window
         Tick();
         ReapplyHotkeys();
         _timer.Start();
+        InitUpdates();
     }
 
     // ---- placement ---------------------------------------------------------------------------------------------
@@ -279,6 +275,8 @@ internal sealed partial class WidgetWindow : Window
             view.ContextRequested += ShowContext;
             view.Entered += ShowVolume;
             view.Scrolled += OnSlotScrolled;
+            if (_tipStyle != null)
+                view.ApplyTipStyle(_tipStyle);
             _views.Add(view);
             _panel.Children.Add(view);
         }
@@ -320,6 +318,26 @@ internal sealed partial class WidgetWindow : Window
         _box.BorderBrush = _moving ? MoveBorder : theme.BoxBorder;
         _box.Background = _moving ? MoveFill : theme.BoxFill;
         _header.Update(canAdd: _settings.Slots.Count < Settings.MaxSlots);
+        ApplyToolTipTheme();
+    }
+
+    Style? _tipStyle;
+    bool _tipLight;
+
+    /// <summary>Tooltips live outside the visual tree, so a change of Windows theme has to be pushed to each one.</summary>
+    void ApplyToolTipTheme()
+    {
+        var light = Theme.Current.Light;
+        if (_tipStyle != null && light == _tipLight)
+            return;
+
+        _tipLight = light;
+        _tipStyle = BuildToolTipStyle();
+        Application.Current.Resources[typeof(ToolTip)] = _tipStyle;
+        _header.ApplyTipStyle(_tipStyle);
+        _system.ApplyTipStyle(_tipStyle);
+        foreach (var view in _views)
+            view.ApplyTipStyle(_tipStyle);
     }
 
     /// <summary>Devices of one direction, with the icon type the user corrected by hand where there is one.</summary>
@@ -650,7 +668,9 @@ internal sealed partial class WidgetWindow : Window
     {
         Refresh();
         var flyout = new Flyout();
-        flyout.AddHeader(null, "SlotMixer", $"{_settings.Slots.Count} de {Settings.MaxSlots} slots  ·  versão {Installer.CurrentVersion.ToString(3)}");
+        var flavor = Updater.IsSelfContained ? " (autônoma)" : "";
+        var news = _update is { } found ? $"  ·  nova: {found.Version.ToString(3)}" : "";
+        flyout.AddHeader(null, "SlotMixer", $"{_settings.Slots.Count} de {Settings.MaxSlots} slots  ·  versão {Installer.CurrentVersion.ToString(3)}{flavor}{news}");
         if (_settings.Slots.Count < Settings.MaxSlots)
             flyout.AddItem("Adicionar slot", AddSlot);
 
@@ -674,6 +694,7 @@ internal sealed partial class WidgetWindow : Window
             flyout.AddItem("Voltar à posição original", ResetPosition);
 
         flyout.AddSeparator();
+        AddUpdateItems(flyout);
         AddGeneralItems(flyout);
         Present(flyout, _header, HeaderSlot);
     }
@@ -1364,7 +1385,7 @@ internal sealed partial class WidgetWindow : Window
         var problem = new TextBlock
         {
             FontSize = 12,
-            Foreground = Theme.Solid(0xFFF87171),
+            Foreground = theme.Error,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(10, 0, 10, 6),
             Visibility = Visibility.Collapsed,

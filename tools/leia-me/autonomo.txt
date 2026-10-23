@@ -1,0 +1,4 @@
+﻿ESTA É A VERSÃO AUTÔNOMA
+Já inclui o .NET: não precisa instalar nada. O arquivo é maior por causa disso.
+Na primeira abertura o Windows verifica o arquivo e ela pode levar até uns 15 segundos
+para aparecer; depois disso abre em menos de 1 segundo.

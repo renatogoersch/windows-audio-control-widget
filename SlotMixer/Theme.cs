@@ -12,13 +12,37 @@ internal sealed class Theme
     /// <summary>Nearly invisible, but opaque enough that the layered window still receives mouse input.</summary>
     public static readonly Brush HitTest = Solid(0x01000000u);
 
+    /// <summary>SLOTMIXER_THEME=light or dark forces one theme instead of following Windows (for testing the colors).</summary>
+    static readonly bool? Forced = Environment.GetEnvironmentVariable("SLOTMIXER_THEME")?.Trim().ToLowerInvariant() switch
+    {
+        "light" => true,
+        "dark" => false,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Device colors, one per position in the device list. The dark set is pastel; the same hues would nearly vanish on
+    /// the light surface, so the light set uses the 600/700 shades.
+    /// </summary>
+    static readonly Brush[] DarkPalette =
+    {
+        Solid(0xFF60A5FA), Solid(0xFF34D399), Solid(0xFFFBBF24), Solid(0xFFF472B6),
+        Solid(0xFFA78BFA), Solid(0xFFFB923C), Solid(0xFF22D3EE), Solid(0xFFF87171),
+    };
+
+    static readonly Brush[] LightPalette =
+    {
+        Solid(0xFF2563EB), Solid(0xFF047857), Solid(0xFFA16207), Solid(0xFFDB2777),
+        Solid(0xFF7C3AED), Solid(0xFFC2410C), Solid(0xFF0E7490), Solid(0xFFDC2626),
+    };
+
     public static Theme Current
     {
         get
         {
             if (s_current == null || DateTime.UtcNow - s_loadedAt > TimeSpan.FromSeconds(2))
             {
-                s_current = new Theme(IsLightTheme());
+                s_current = new Theme(Forced ?? IsLightTheme());
                 s_loadedAt = DateTime.UtcNow;
             }
             return s_current;
@@ -37,9 +61,13 @@ internal sealed class Theme
         Divider = Solid(light ? 0x1A000000u : 0x1AFFFFFFu);
         BoxFill = Solid(light ? 0x0A000000u : 0x0FFFFFFFu);
         BoxBorder = Solid(light ? 0x33000000u : 0x38FFFFFFu);
+        Error = Solid(light ? 0xFFB91C1Cu : 0xFFF87171u);
+        Palette = light ? LightPalette : DarkPalette;
     }
 
     public bool Light { get; }
+    public Brush Error { get; }
+    public Brush[] Palette { get; }
     public Brush Text { get; }
     public Brush SubText { get; }
     public Brush Surface { get; }

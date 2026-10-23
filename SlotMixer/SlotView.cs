@@ -130,6 +130,13 @@ internal sealed class SlotView : HoverBorder
 
     public int Index { get; }
 
+    /// <summary>The tooltip is not part of the visual tree, so a new theme has to be handed to it directly.</summary>
+    public void ApplyTipStyle(Style style)
+    {
+        if (ToolTip is ToolTip tip)
+            tip.Style = style;
+    }
+
     public event Action<SlotView>? Clicked;
     public event Action<SlotView>? ContextRequested;
     public event Action<SlotView>? Entered;

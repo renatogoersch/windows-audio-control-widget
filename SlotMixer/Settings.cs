@@ -101,6 +101,15 @@ internal sealed class Settings
     /// </summary>
     public double OffsetFromTray { get; set; }
 
+    /// <summary>Whether an installed copy updates itself when a new release is published.</summary>
+    public bool AutoUpdate { get; set; } = true;
+
+    /// <summary>When the last look for a new release happened (UTC), so that a restart does not ask GitHub again right away.</summary>
+    public DateTime? LastUpdateCheck { get; set; }
+
+    /// <summary>The version that ran last, to say "updated" once after the version changes.</summary>
+    public string? LastVersion { get; set; }
+
     public List<Profile> Profiles { get; set; } = new();
 
     /// <summary>Icon type picked by hand for a device id, for the cases where Windows and the name guess wrong.</summary>

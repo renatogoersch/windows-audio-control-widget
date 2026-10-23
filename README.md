@@ -54,6 +54,16 @@ O Windows chama muitos headsets de "Speakers"; o SlotMixer corrige os mais comun
 
 Na primeira abertura fora da pasta de instalação, o exe oferece instalar: copia-se para `%LOCALAPPDATA%\Programs\SlotMixer`, cria um atalho no Menu Iniciar e uma entrada em Configurações › Aplicativos instalados; não precisa de administrador. Linha de comando: `--install` (instala ou atualiza sem perguntar, mesmo com uma cópia rodando), `--uninstall` (`--quiet` sem perguntas, mantém as configurações), `--portable` (nunca oferece instalar). Abrir um exe mais novo com a versão instalada rodando oferece atualizar.
 
+### Atualizações
+
+Uma cópia **instalada** se atualiza sozinha: 45 segundos depois de abrir (e a cada 6 horas) ela pergunta ao GitHub qual é o último Release; se for mais novo, baixa o zip do mesmo tipo da cópia (leve ou autônomo), confere o tamanho e a soma SHA-256 que o GitHub informa e a versão do exe lá dentro, e o instala por cima. Isso só acontece quando você não está em jogo ou apresentando, sem menu aberto, e um aviso na tela aparece antes de o widget reiniciar; depois dele, "SlotMixer atualizado" confirma a nova versão. Configurações, slots e perfis ficam como estavam.
+
+Botão direito no headset: **Verificar atualizações agora** (atualiza na hora, se houver), **Atualizar automaticamente** (liga/desliga) e, quando há versão nova pendente, **Atualizar agora**. A única coisa enviada é a consulta HTTPS à API pública do GitHub (com o agente `SlotMixer/versão`); nada do seu computador. Uma cópia não instalada nunca se substitui sozinha: ela só avisa e abre a página de download.
+
+### Tema claro e escuro
+
+O widget, os menus, o aviso e os tooltips seguem o tema da **barra de tarefas** do Windows (`SystemUsesLightTheme`) e acompanham a troca em poucos segundos, sem reiniciar. Cada tema tem a sua paleta de cores dos dispositivos, para que as cores continuem legíveis na barra clara.
+
 ## Compilar e rodar
 
 ```
@@ -62,25 +72,29 @@ dotnet build -c Release
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
 ```
 
-Precisa do SDK do .NET 8 para compilar e do .NET 8 Desktop Runtime para rodar (Windows 11, x64). Configurações em `%APPDATA%\SlotMixer\settings.json`; erros em `error.log` na mesma pasta; `SLOTMIXER_TRACE=1` no ambiente grava um `trace.log` com o que cada atalho decide.
+Precisa do SDK do .NET 8 para compilar e do .NET 8 Desktop Runtime para rodar (Windows 11, x64). Configurações em `%APPDATA%\SlotMixer\settings.json`; erros em `error.log` na mesma pasta; `SLOTMIXER_TRACE=1` no ambiente grava um `trace.log` com o que cada atalho decide e por que uma consulta de atualização falhou; `SLOTMIXER_THEME=light` ou `dark` força um tema (para conferir as cores); `SLOTMIXER_UPDATE_FEED=<url>` troca o endereço da consulta de atualização (um servidor local nos testes, ou o de um fork).
 
 ## Enviar para outra pessoa
 
-Os zips da versão atual estão na página de [Releases](https://github.com/renatogoersch/windows-audio-control-widget/releases) do repositório. São dois (cada um com `SlotMixer.exe` e um `LEIA-ME.txt` em português), montados à mão numa pasta `dist\` local, que não vai para o repositório:
+Os zips da versão atual estão na página de [Releases](https://github.com/renatogoersch/windows-audio-control-widget/releases) do repositório. São dois (cada um com `SlotMixer.exe` e um `LEIA-ME.txt` em português):
 
 | Zip | Tamanho | Requisito |
 |---|---|---|
 | `SlotMixer-requer-dotnet.zip` | ~0,1 MB | .NET 8 Desktop Runtime (x64) instalado |
 | `SlotMixer-autonomo.zip` | ~58 MB | nenhum (leva o .NET dentro) |
 
-Para gerar de novo, em `SlotMixer\` (o widget pode continuar rodando de `publish`, o autônomo vai para outra pasta):
+O exe não é assinado, então o SmartScreen avisa na primeira vez. Para montar os zips na sua máquina (vão para `dist\`, que não é versionada): `tools\build-zips.ps1`. A versão autônoma precisa dos pacotes `Microsoft.NETCore.App.Runtime.win-x64` e `Microsoft.WindowsDesktop.App.Runtime.win-x64` (8.0.x, ~35 MB cada, do NuGet; ficam no cache depois do primeiro uso).
 
-```
-dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish-selfcontained
-```
+## Lançar uma versão
 
-A versão autônoma precisa dos pacotes `Microsoft.NETCore.App.Runtime.win-x64` e `Microsoft.WindowsDesktop.App.Runtime.win-x64` (8.0.25, ~35 MB cada, do NuGet; ficam no cache depois do primeiro uso). O exe não é assinado, então o SmartScreen avisa na primeira vez. Suba a `<Version>` no `.csproj` a cada entrega: é ela que decide se a instalação oferece atualizar.
+Sem servidor próprio: o Release do GitHub é o canal de distribuição *e* o aviso de atualização das cópias instaladas.
+
+1. Escreva o que mudou numa seção `## X.Y.Z` do [CHANGELOG.md](CHANGELOG.md); ela vira o texto do Release.
+2. Com tudo commitado em `main`: `tools\release.ps1 -Version X.Y.Z`. Ele grava a `<Version>` no `.csproj`, faz o commit, cria a tag `vX.Y.Z` e a envia.
+3. A tag dispara o workflow [Release](.github/workflows/release.yml) (GitHub Actions, de graça em repositório público): compila as duas versões, recusa a tag se ela não bater com o `.csproj`, monta os zips e publica o Release. (`-Local` faz o mesmo na sua máquina, com a CLI `gh`, sem esperar o Actions.)
+4. Em até 6 horas as cópias instaladas veem o Release novo e se atualizam.
+
+O número precisa subir sempre: é a `<Version>` que decide se a cópia instalada considera o Release mais novo. Um Release marcado como *pre-release* ou rascunho não é visto pelas cópias (a consulta é ao "latest"), o que serve para testar sem atingir ninguém.
 
 ## Como funciona
 
@@ -92,6 +106,8 @@ A versão autônoma precisa dos pacotes `Microsoft.NETCore.App.Runtime.win-x64` 
 - **Posição**: janela sem borda, sempre no topo e sem foco, posicionada sobre a barra logo à esquerda do `TrayNotifyWnd` e reposicionada a cada 250 ms. O Windows 11 não tem API oficial para widgets na barra.
 - **Painéis da barra** (volume, rede, relógio, ocultos, Iniciar): ao abrir um deles o Windows leva a barra para uma camada acima de qualquer janela comum, até as "sempre no topo". Por isso a janela do widget tem a barra como *dona* (`GWLP_HWNDPARENT`), o que a mantém empilhada junto com ela e visível. Uma janela *filha* da barra foi descartada: o Windows 11 não desenha filhas com transparência por pixel sobre o conteúdo da barra. Se o Explorer for reiniciado, a janela some junto com a barra e o SlotMixer se reabre sozinho.
 - **Instalador**: o próprio exe (`Installer.cs`), sem ferramentas externas.
+- **Atualizador** (`Updater.cs`, `WidgetWindow.Update.cs`): `GET /repos/…/releases/latest` na API pública do GitHub, sem token. O zip é escolhido por um metadado gravado na compilação (`AssemblyMetadata SelfContained`), e o exe baixado, rodando em modo `--install`, é o mesmo caminho do instalador: para a cópia em execução, copia-se por cima e abre-se a nova.
+- **Tema**: `Theme.cs` lê `SystemUsesLightTheme` a cada 2 s; `Refresh` reaplica as cores e `ApplyToolTipTheme` empurra o estilo novo aos tooltips (que ficam fora da árvore visual).
 
 ## Limitações conhecidas
 

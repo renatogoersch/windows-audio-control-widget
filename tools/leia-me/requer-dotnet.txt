@@ -1,0 +1,5 @@
+﻿ESTA É A VERSÃO LEVE
+Precisa do ".NET 8 Desktop Runtime" (x64) instalado. Se não tiver, o Windows avisa ao abrir.
+Baixe em: https://dotnet.microsoft.com/download/dotnet/8.0
+(seção ".NET Desktop Runtime", versão x64).
+Se preferir não instalar nada, use a versão "autônoma" (maior, mas sem requisitos).

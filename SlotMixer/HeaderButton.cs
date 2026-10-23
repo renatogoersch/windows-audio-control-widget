@@ -31,6 +31,8 @@ internal sealed class HeaderButton : HoverBorder
         Visibility = Visibility.Collapsed,
     };
 
+    readonly ToolTip _tip = new();
+
     bool _canAdd = true;
 
     public HeaderButton(double width, double height) : base(width, height)
@@ -39,6 +41,7 @@ internal sealed class HeaderButton : HoverBorder
         grid.Children.Add(_headset);
         grid.Children.Add(_plus);
         Child = grid;
+        ToolTip = _tip;
 
         ToolTipService.SetPlacement(this, PlacementMode.Top);
         ToolTipService.SetVerticalOffset(this, -6);
@@ -56,8 +59,11 @@ internal sealed class HeaderButton : HoverBorder
         _plus.Foreground = theme.Text;
         _headset.Opacity = canAdd ? 1 : 0.6;
         var menu = "Botão direito: menu do SlotMixer";
-        ToolTip = canAdd ? $"Clique: adicionar slot\n{menu}" : $"Limite de {Settings.MaxSlots} slots\n{menu}";
+        _tip.Content = canAdd ? $"Clique: adicionar slot\n{menu}" : $"Limite de {Settings.MaxSlots} slots\n{menu}";
     }
+
+    /// <summary>The tooltip is not part of the visual tree, so a new theme has to be handed to it directly.</summary>
+    public void ApplyTipStyle(Style style) => _tip.Style = style;
 
     protected override void OnHoverChanged(bool hovered) =>
         _plus.Visibility = hovered && _canAdd ? Visibility.Visible : Visibility.Collapsed;

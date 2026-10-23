@@ -1,0 +1,38 @@
+name: Release
+
+# Pushing a tag like v1.6.1 builds both zips and publishes the GitHub Release; tools/release.ps1 does the tagging.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build the zips (fails when the tag and the csproj version disagree)
+        shell: pwsh
+        run: ./tools/build-zips.ps1 -ExpectVersion '${{ github.ref_name }}'
+
+      - name: Compose the release notes from CHANGELOG.md
+        shell: pwsh
+        run: ./tools/release-notes.ps1 -Version '${{ github.ref_name }}' | Set-Content release-notes.md -Encoding utf8
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          gh release create '${{ github.ref_name }}'
+          dist/SlotMixer-requer-dotnet.zip dist/SlotMixer-autonomo.zip
+          --title '${{ github.ref_name }} - Windows Audio Control - Widget'
+          --notes-file release-notes.md
+          --verify-tag
