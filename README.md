@@ -66,7 +66,7 @@ Precisa do SDK do .NET 8 para compilar e do .NET 8 Desktop Runtime para rodar (W
 
 ## Enviar para outra pessoa
 
-Dois zips (cada um com `SlotMixer.exe` e um `LEIA-ME.txt` em português) são montados à mão numa pasta `dist\` local, que não vai para o repositório:
+Os zips da versão atual estão na página de [Releases](https://github.com/renatogoersch/windows-audio-control-widget/releases) do repositório. São dois (cada um com `SlotMixer.exe` e um `LEIA-ME.txt` em português), montados à mão numa pasta `dist\` local, que não vai para o repositório:
 
 | Zip | Tamanho | Requisito |
 |---|---|---|
@@ -101,3 +101,8 @@ A versão autônoma precisa dos pacotes `Microsoft.NETCore.App.Runtime.win-x64` 
 - Perfis e atalhos só atuam em apps abertos; o Windows não permite fixar a saída de um app que não está rodando.
 - Em jogo em tela cheia o widget some junto com a barra (os atalhos continuam valendo).
 - Se muitos apps estiverem fixados/abertos na barra a ponto de chegar perto do tray, os ícones passam por baixo do widget.
+
+## Licença
+
+MIT, veja [LICENSE](LICENSE).
+
