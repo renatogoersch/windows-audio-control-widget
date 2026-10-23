@@ -1,0 +1,8 @@
+bin/
+obj/
+publish/
+publish-selfcontained/
+dist/
+.vs/
+*.user
+*.log
