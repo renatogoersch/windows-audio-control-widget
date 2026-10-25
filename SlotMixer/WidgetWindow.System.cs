@@ -79,14 +79,11 @@ internal sealed partial class WidgetWindow
         foreach (var device in _outputs.OrderBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase))
         {
             var id = device.Id;
-            CycleToggle? cycle = config.Hotkey == null
-                ? null
-                : new CycleToggle(!config.ExcludedOutputs.Contains(id, StringComparer.OrdinalIgnoreCase), on => SetInCycle(config, id, on));
+            var cycle = new CycleToggle(!config.ExcludedOutputs.Contains(id, StringComparer.OrdinalIgnoreCase), on => SetInCycle(config, id, on));
             flyout.AddItem(device.Name, () => SetSystemDefault(id, input: false),
                 badge: BadgeFor(id, input: false), isChecked: SameId(_defaultOutputId, id), cycle: cycle);
         }
-        if (config.Hotkey != null)
-            flyout.AddNote("↻ à direita: a saída entra no ciclo do atalho. Clique no ícone, ou no botão direito sobre a linha, para marcar ou tirar.");
+        flyout.AddNote(CycleNote(config));
 
         if (_inputs.Count > 0)
         {

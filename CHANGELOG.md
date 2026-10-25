@@ -2,6 +2,10 @@
 
 Cada versão ganha uma seção `## X.Y.Z`; o texto dela vira o corpo do Release no GitHub (veja `tools/release-notes.ps1`).
 
+## 1.6.1
+
+- **O botão ↻ de cada saída agora aparece sempre** no menu do clique esquerdo (slots de app e slot do Windows). Antes ele só aparecia depois de definir o atalho "Alternar saída" do slot, e quem ainda não tinha atalho não achava onde escolher quais saídas o atalho percorre. A escolha vale mesmo antes de o atalho existir, e uma nota sob a lista explica o botão e diz onde definir o atalho.
+
 ## 1.6.0
 
 - **Atualização automática.** Uma cópia instalada procura versões novas na página de Releases do projeto (a cada 6 horas), baixa o zip do mesmo tipo da cópia (leve ou autônoma), confere o tamanho e a soma SHA-256 e se reinstala quando você não está em jogo, com um aviso antes de reiniciar. Menu do headset: **Verificar atualizações agora** e **Atualizar automaticamente** (liga/desliga). Cópias não instaladas só avisam e abrem a página de download.

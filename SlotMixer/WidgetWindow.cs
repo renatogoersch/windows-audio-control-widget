@@ -571,15 +571,12 @@ internal sealed partial class WidgetWindow : Window
         {
             var id = device.Id;
 
-            // The "in the shortcut's cycle" switch only means something once the slot has a shortcut.
-            CycleToggle? cycle = config.Hotkey == null
-                ? null
-                : new CycleToggle(!config.ExcludedOutputs.Contains(id, StringComparer.OrdinalIgnoreCase), on => SetInCycle(config, id, on));
+            // Always shown, so that it can be found: the choice is kept for when the shortcut is set.
+            var cycle = new CycleToggle(!config.ExcludedOutputs.Contains(id, StringComparer.OrdinalIgnoreCase), on => SetInCycle(config, id, on));
             flyout.AddItem(device.Name, () => Apply(slot, id),
                 badge: BadgeFor(id, input: false), isChecked: SameId(runtime.DeviceId, id), cycle: cycle);
         }
-        if (config.Hotkey != null)
-            flyout.AddNote("↻ à direita: a saída entra no ciclo do atalho. Clique no ícone, ou no botão direito sobre a linha, para marcar ou tirar.");
+        flyout.AddNote(CycleNote(config));
 
         if (_inputs.Count > 0)
         {
@@ -654,6 +651,11 @@ internal sealed partial class WidgetWindow : Window
         flyout.AddItem("Remover slot", () => RemoveSlot(slot));
         Present(flyout, view, slot);
     }
+
+    /// <summary>The line under the output list that explains the ↻ switch at the right of each row.</summary>
+    static string CycleNote(SlotConfig config) =>
+        "↻ à direita: a saída entra no ciclo do atalho \"Alternar saída\". Clique no ícone, ou no botão direito sobre a linha, para marcar ou tirar." +
+        (config.Hotkey == null ? " Este slot ainda não tem o atalho: botão direito no slot › Atalhos." : "");
 
     /// <summary>Whether the slot's shortcut steps through an output. A skipped output stays in the slot menu; only the shortcut ignores it.</summary>
     void SetInCycle(SlotConfig config, string deviceId, bool included)
