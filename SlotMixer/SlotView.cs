@@ -96,6 +96,7 @@ internal sealed class SlotView : HoverBorder
     public SlotView(int index, double size) : base(size, size)
     {
         Index = index;
+        Instances.Add(new WeakReference<SlotView>(this));
         RenderOptions.SetBitmapScalingMode(_icon, BitmapScalingMode.HighQuality);
         ToolTipService.SetPlacement(this, PlacementMode.Top);
         ToolTipService.SetVerticalOffset(this, -6);
@@ -129,6 +130,9 @@ internal sealed class SlotView : HoverBorder
     }
 
     public int Index { get; }
+
+    /// <summary>All slot views alive, so that one strip's flash can be shown on the others too (one strip per taskbar).</summary>
+    static readonly List<WeakReference<SlotView>> Instances = new();
 
     /// <summary>The tooltip is not part of the visual tree, so a new theme has to be handed to it directly.</summary>
     public void ApplyTipStyle(Style style)
@@ -220,7 +224,7 @@ internal sealed class SlotView : HoverBorder
         _glyph.Foreground = Theme.Current.SubText;
         _glyph.Opacity = 0.7;
         _glyph.Visibility = Visibility.Visible;
-        _tipTitle.Text = "Slot vazio — clique para escolher um app";
+        _tipTitle.Text = L("Slot vazio — clique para escolher um app");
         SetInput(null);
         SetVolume(null);
         SetMuted(false);
@@ -282,7 +286,7 @@ internal sealed class SlotView : HoverBorder
     /// <summary>Microphone line of the tooltip; null hides it (the app follows the default microphone).</summary>
     public void SetInput(string? text)
     {
-        _tipInput.Text = $"Microfone: {text}";
+        _tipInput.Text = L("Microfone: {0}", text);
         _tipInput.Visibility = text == null ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -311,8 +315,8 @@ internal sealed class SlotView : HoverBorder
         }
 
         _tipVolume.Text = _muted
-            ? (_percent is { } level ? $"Mudo  ·  volume {level}%" : "Mudo")
-            : $"Volume {_percent}%  ·  role o mouse para ajustar";
+            ? (_percent is { } level ? L("Mudo  ·  volume {0}%", level) : L("Mudo"))
+            : L("Volume {0}%  ·  role o mouse para ajustar", _percent);
         _tipVolume.Visibility = Visibility.Visible;
     }
 
@@ -321,11 +325,11 @@ internal sealed class SlotView : HoverBorder
     {
         var lines = new List<string>();
         if (cycle != null)
-            lines.Add($"Alternar saída: {cycle}");
+            lines.Add(L("Alternar saída: {0}", cycle));
         if (volumeUp != null || volumeDown != null)
-            lines.Add($"Volume +: {volumeUp ?? "—"}   ·   Volume −: {volumeDown ?? "—"}");
+            lines.Add(L("Volume +: {0}   ·   Volume −: {1}", volumeUp ?? "—", volumeDown ?? "—"));
         if (mute != null)
-            lines.Add($"Mudo: {mute}");
+            lines.Add(L("Mudo: {0}", mute));
 
         _tipHotkey.Text = string.Join("\n", lines);
         _tipHotkey.Visibility = lines.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
@@ -333,6 +337,16 @@ internal sealed class SlotView : HoverBorder
 
     /// <summary>Answer to a hotkey press: a green tick when it worked, a red cross when it could not.</summary>
     public void Flash(bool success)
+    {
+        Instances.RemoveAll(r => !r.TryGetTarget(out _));
+        foreach (var reference in Instances.ToList())
+        {
+            if (reference.TryGetTarget(out var view) && view.Index == Index)
+                view.ShowFlash(success);
+        }
+    }
+
+    void ShowFlash(bool success)
     {
         var color = success ? Success : Failure;
         _flash.Background = color;

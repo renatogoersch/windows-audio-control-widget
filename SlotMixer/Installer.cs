@@ -34,11 +34,11 @@ internal static class Installer
         !IsInstalled && !settings.SkipInstallPrompt && !Startup.IsEnabled && !args.Contains("--portable");
 
     public static MessageBoxResult Ask() => MessageBox.Show(
-        "Instalar o SlotMixer neste computador?\n\n" +
-        "Sim: copia o programa para a sua pasta de usuário (não precisa de administrador), cria um atalho no Menu Iniciar e abre o widget.\n" +
-        "Não: só executa a partir desta pasta, sem instalar (e não pergunta de novo).\n" +
-        "Cancelar: sai.\n\n" +
-        "Você pode instalar depois pelo menu do headset.",
+        L("Instalar o SlotMixer neste computador?\n\n" +
+          "Sim: copia o programa para a sua pasta de usuário (não precisa de administrador), cria um atalho no Menu Iniciar e abre o widget.\n" +
+          "Não: só executa a partir desta pasta, sem instalar (e não pergunta de novo).\n" +
+          "Cancelar: sai.\n\n" +
+          "Você pode instalar depois pelo menu do headset."),
         Title, MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
 
     /// <summary>
@@ -65,7 +65,7 @@ internal static class Installer
         catch (Exception ex)
         {
             Log.Error(ex);
-            MessageBox.Show($"Não foi possível instalar:\n\n{ex.Message}", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(L("Não foi possível instalar:\n\n{0}", ex.Message), Title, MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
     }
@@ -84,18 +84,18 @@ internal static class Installer
             return false;
 
         var answer = MessageBox.Show(
-            $"O SlotMixer {old.ToString(3)} já está instalado e em execução.\n\nAtualizar para a versão {CurrentVersion.ToString(3)}?",
+            L("O SlotMixer {0} já está instalado e em execução.\n\nAtualizar para a versão {1}?", old.ToString(3), CurrentVersion.ToString(3)),
             Title, MessageBoxButton.YesNo, MessageBoxImage.Question);
         return answer == MessageBoxResult.Yes && InstallAndLaunch();
     }
 
     public static void Uninstall(bool quiet)
     {
-        if (!quiet && MessageBox.Show("Desinstalar o SlotMixer?", Title, MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        if (!quiet && MessageBox.Show(L("Desinstalar o SlotMixer?"), Title, MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             return;
 
         var wipeSettings = !quiet && MessageBox.Show(
-            "Apagar também os seus slots, atalhos e perfis?\n\nSim: apaga tudo.\nNão: mantém as configurações (úteis se você reinstalar).",
+            L("Apagar também os seus slots, atalhos e perfis?\n\nSim: apaga tudo.\nNão: mantém as configurações (úteis se você reinstalar)."),
             Title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
 
         try
@@ -124,13 +124,13 @@ internal static class Installer
             }
 
             if (!quiet)
-                MessageBox.Show("SlotMixer desinstalado.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(L("SlotMixer desinstalado."), Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
             Log.Error(ex);
             if (!quiet)
-                MessageBox.Show($"Não foi possível desinstalar tudo:\n\n{ex.Message}", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(L("Não foi possível desinstalar tudo:\n\n{0}", ex.Message), Title, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -165,7 +165,7 @@ internal static class Installer
         dynamic link = shell.CreateShortcut(ShortcutPath);
         link.TargetPath = InstalledExe;
         link.WorkingDirectory = InstallDir;
-        link.Description = "SlotMixer: saída de áudio por app na barra de tarefas";
+        link.Description = L("SlotMixer: saída de áudio por app na barra de tarefas");
         link.Save();
     }
 

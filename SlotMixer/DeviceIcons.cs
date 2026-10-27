@@ -20,12 +20,12 @@ internal static class DeviceIcons
 
     public static string Label(DeviceKind kind) => kind switch
     {
-        DeviceKind.Headphones => "Fone de ouvido",
-        DeviceKind.Headset => "Headset",
-        DeviceKind.Speakers => "Caixas de som",
-        DeviceKind.Monitor => "Monitor / TV",
-        DeviceKind.Microphone => "Microfone",
-        _ => "Outro",
+        DeviceKind.Headphones => L("Fone de ouvido"),
+        DeviceKind.Headset => L("Headset"),
+        DeviceKind.Speakers => L("Caixas de som"),
+        DeviceKind.Monitor => L("Monitor / TV"),
+        DeviceKind.Microphone => L("Microfone"),
+        _ => L("Outro"),
     };
 
     /// <summary>The kinds a user can pick from when correcting an icon, in the order they cycle.</summary>

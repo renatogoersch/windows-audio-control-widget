@@ -101,6 +101,12 @@ internal sealed class Settings
     /// </summary>
     public double OffsetFromTray { get; set; }
 
+    /// <summary>"primary" puts the widget on the main taskbar only; "all" also on the taskbar of every other display.</summary>
+    public string ShowOn { get; set; } = "primary";
+
+    /// <summary>Language of the interface: "auto" follows the Windows display language, otherwise "pt" or "en".</summary>
+    public string Language { get; set; } = "auto";
+
     /// <summary>Whether an installed copy updates itself when a new release is published.</summary>
     public bool AutoUpdate { get; set; } = true;
 

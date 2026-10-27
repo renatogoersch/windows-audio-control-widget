@@ -51,9 +51,9 @@ internal sealed partial class WidgetWindow
         // The slots stop reacting (and showing tooltips) so that the whole strip is one handle.
         _panel.IsHitTestVisible = false;
         _box.Cursor = Cursors.SizeWE;
-        _box.ToolTip = "Arraste para a esquerda ou a direita\nBotão direito: sair";
+        _box.ToolTip = L("Arraste para a esquerda ou a direita\nBotão direito: sair");
         ApplyTheme();
-        _osd.Flash(null, "Mover o widget", "Arraste para a esquerda ou a direita. Botão direito sai.", null);
+        _osd.Flash(null, L("Mover o widget"), L("Arraste para a esquerda ou a direita. Botão direito sai."), null);
     }
 
     void StopMoving()

@@ -56,8 +56,26 @@ internal sealed partial class WidgetWindow : Window
     readonly Border _box = new();
     readonly StackPanel _panel = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
     readonly HeaderButton _header = new(HeaderWidth, SlotSize);
-    readonly HotkeyHost _hotkeys = new();
     readonly Osd _osd = new();
+
+    /// <summary>Every strip on screen: the one on the main taskbar and, when asked for, one on each of the others.</summary>
+    static readonly List<WidgetWindow> All = new();
+
+    /// <summary>The strip on the main taskbar: it owns the shortcuts, the update check and the other strips.</summary>
+    static WidgetWindow? s_primary;
+
+    readonly bool _isPrimary;
+
+    /// <summary>The taskbar this strip belongs to when it is not the main one.</summary>
+    readonly IntPtr _taskbarHwnd;
+
+    readonly HotkeyHost? _ownHotkeys;
+
+    /// <summary>Geometry of the taskbar at the last tick; menus open relative to it.</summary>
+    TaskbarTarget? _target;
+
+    /// <summary>Global shortcuts are registered once, by the main strip, whichever strip a menu was opened from.</summary>
+    HotkeyHost Hotkeys => s_primary!._ownHotkeys!;
 
     IntPtr _hwnd;
 
@@ -78,9 +96,19 @@ internal sealed partial class WidgetWindow : Window
     int _lastClosedSlot = -1;
     DateTime _lastClosedAt;
 
-    public WidgetWindow(Settings settings)
+    /// <param name="taskbarHwnd">Zero for the main taskbar; otherwise the window of another display's taskbar.</param>
+    public WidgetWindow(Settings settings, IntPtr taskbarHwnd = default)
     {
         _settings = settings;
+        _taskbarHwnd = taskbarHwnd;
+        _isPrimary = taskbarHwnd == IntPtr.Zero;
+        All.Add(this);
+        if (_isPrimary)
+        {
+            s_primary = this;
+            _ownHotkeys = new HotkeyHost();
+            _ownHotkeys.Pressed += OnHotkey;
+        }
 
         Title = "SlotMixer";
         WindowStyle = WindowStyle.None;
@@ -114,13 +142,15 @@ internal sealed partial class WidgetWindow : Window
         Content = _box;
         InitMove();
 
-        _hotkeys.Pressed += OnHotkey;
-
         _timer.Tick += (_, _) =>
         {
             Tick();
             if (++_ticks % 8 == 0)
+            {
                 Refresh();
+                if (_isPrimary)
+                    SyncSecondaryWindows();
+            }
         };
     }
 
@@ -139,26 +169,35 @@ internal sealed partial class WidgetWindow : Window
         base.OnContentRendered(e);
         Refresh();
         Tick();
-        ReapplyHotkeys();
         _timer.Start();
+        if (!_isPrimary)
+            return;
+
+        ReapplyHotkeys();
         InitUpdates();
+        SyncSecondaryWindows();
     }
 
     // ---- placement ---------------------------------------------------------------------------------------------
 
     void Tick()
     {
-        // The taskbar window is gone (Explorer restarted) and took this window with it: start over in a fresh process.
+        // The taskbar window is gone and took this window with it. When it was the main taskbar, Explorer restarted:
+        // start over in a fresh process. When it was another display's, that display went away: this strip just ends.
         if (_owner != IntPtr.Zero && !Native.IsWindow(_hwnd))
         {
-            RestartAfterShellLoss();
+            if (_isPrimary)
+                RestartAfterShellLoss();
+            else
+                Retire();
             return;
         }
 
         ExpireMove();
 
-        if (!Taskbar.TryGetGeometry(out var bar, out var trayLeft, out var scale)
-            || Taskbar.IsHidden(bar) || Taskbar.FullscreenAppActive())
+        var target = Taskbar.Target(_taskbarHwnd);
+        _target = target;
+        if (target == null || target.IsHidden || Taskbar.FullscreenAppActive())
         {
             // Also covers the very first tick, when WPF has shown the (still transparent) window but it was never docked.
             if (_shown || Native.IsWindowVisible(_hwnd))
@@ -170,41 +209,72 @@ internal sealed partial class WidgetWindow : Window
             return;
         }
 
-        // A small taskbar (or a low-DPI one) is shorter than the strip: shrink the strip instead of clipping it.
-        var fit = Math.Clamp((bar.Height / scale - 6) / StripHeight, MinFit, 1);
-        if (Math.Abs(fit - _fit) > 0.001)
+        // Everything is derived from this taskbar's own display, so a different resolution, DPI or main display is
+        // picked up on the next tick. The strip also steps aside for the app buttons, and the user can slide it left.
+        var probe = TaskbarProbe.Latest(target.Hwnd);
+        var dock = Layout.Compute(new DockInput(
+            target.Bar.Left, target.Bar.Top, target.Bar.Height, target.TrayLeft, target.Scale,
+            ContentWidth, StripHeight, TrayGap, _settings.OffsetFromTray, probe?.IconsRight));
+
+        if (Math.Abs(dock.Fit - _fit) > 0.001)
         {
-            _fit = fit;
-            _box.LayoutTransform = fit >= 0.999 ? Transform.Identity : new ScaleTransform(fit, fit);
+            _fit = dock.Fit;
+            _box.LayoutTransform = dock.Fit >= 0.999 ? Transform.Identity : new ScaleTransform(dock.Fit, dock.Fit);
         }
 
-        // Everything is derived from the taskbar's own monitor, so a different resolution, DPI or primary
-        // monitor is picked up on the next tick.
-        var width = (int)Math.Round(ContentWidth * _fit * scale);
-        var home = trayLeft - width - (int)Math.Round(TrayGap * scale);
+        _dockScale = target.Scale;
+        _slackDips = dock.SlackDips;
 
-        // The user can slide the strip to the left along the bar; it never leaves it.
-        var slack = Math.Max(0, home - bar.Left);
-        _dockScale = scale;
-        _slackDips = slack / scale;
-        var shift = (int)Math.Round(Math.Clamp(_settings.OffsetFromTray * scale, 0, slack));
-        var want = (X: home - shift, Y: bar.Top, W: width, H: bar.Height);
-
-        AttachToTaskbar();
+        AttachToTaskbar(target.Hwnd);
 
         Native.GetWindowRect(_hwnd, out var actual);
-        var placed = actual.Left == want.X && actual.Top == want.Y && actual.Width == want.W && actual.Height == want.H;
+        var placed = actual.Left == dock.X && actual.Top == dock.Y && actual.Width == dock.Width && actual.Height == dock.Height;
 
         if (!_shown || !placed)
         {
-            Native.SetWindowPos(_hwnd, Native.HwndTopmost, want.X, want.Y, want.W, want.H, Native.SwpNoActivate | Native.SwpShowWindow);
+            Native.SetWindowPos(_hwnd, Native.HwndTopmost, dock.X, dock.Y, dock.Width, dock.Height, Native.SwpNoActivate | Native.SwpShowWindow);
             _shown = true;
             Opacity = 1;
         }
-        else if (Taskbar.IsAbove(_hwnd))
+        else if (Taskbar.IsAbove(_hwnd, target.Hwnd))
         {
             // Clicking the taskbar raises it over us; take the top spot back.
             RaiseToTop();
+        }
+    }
+
+    /// <summary>
+    /// Keeps one strip per extra taskbar while "show on all displays" is on, and none otherwise. Only the main strip
+    /// does this; it runs every couple of seconds, so a display plugged in or removed is picked up on its own.
+    /// </summary>
+    void SyncSecondaryWindows()
+    {
+        var wanted = string.Equals(_settings.ShowOn, "all", StringComparison.OrdinalIgnoreCase)
+            ? Taskbar.SecondaryHandles()
+            : new List<IntPtr>();
+
+        foreach (var window in All.Where(w => !w._isPrimary && !wanted.Contains(w._taskbarHwnd)).ToList())
+            window.Retire();
+
+        foreach (var hwnd in wanted)
+        {
+            if (All.All(w => w._taskbarHwnd != hwnd))
+                new WidgetWindow(_settings, hwnd).Show();
+        }
+    }
+
+    /// <summary>Ends a strip that is no longer wanted (its display went away, or "all displays" was turned off).</summary>
+    void Retire()
+    {
+        _timer.Stop();
+        All.Remove(this);
+        try
+        {
+            Close();
+        }
+        catch (InvalidOperationException)
+        {
+            // Already closing.
         }
     }
 
@@ -214,14 +284,13 @@ internal sealed partial class WidgetWindow : Window
     /// together with it and stays visible. (A child window of the taskbar was tried first: Windows 11 does not draw
     /// per-pixel transparent children over the taskbar's own content.)
     /// </summary>
-    void AttachToTaskbar()
+    void AttachToTaskbar(IntPtr taskbar)
     {
-        var tray = Taskbar.Handle;
-        if (tray == IntPtr.Zero || tray == _owner)
+        if (taskbar == IntPtr.Zero || taskbar == _owner)
             return;
 
-        Native.SetOwner(_hwnd, tray);
-        _owner = tray;
+        Native.SetOwner(_hwnd, taskbar);
+        _owner = taskbar;
     }
 
     void RaiseToTop() =>
@@ -252,10 +321,13 @@ internal sealed partial class WidgetWindow : Window
     /// <summary>Called when the exe is launched again: put the widget back on top and pulse it so it can be spotted.</summary>
     public void Reveal()
     {
-        Tick();
-        if (_shown)
-            RaiseToTop();
-        _box.BeginAnimation(OpacityProperty, new DoubleAnimation(0.15, 1, TimeSpan.FromMilliseconds(900)));
+        foreach (var window in All.ToList())
+        {
+            window.Tick();
+            if (window._shown)
+                window.RaiseToTop();
+            window._box.BeginAnimation(OpacityProperty, new DoubleAnimation(0.15, 1, TimeSpan.FromMilliseconds(900)));
+        }
     }
 
     // ---- slots -------------------------------------------------------------------------------------------------
@@ -304,9 +376,14 @@ internal sealed partial class WidgetWindow : Window
     void SlotsChanged()
     {
         _settings.Save();
-        RebuildSlots();
-        Refresh();
-        Tick();
+
+        // Every strip (one per taskbar) shows the same slots.
+        foreach (var window in All.ToList())
+        {
+            window.RebuildSlots();
+            window.Refresh();
+            window.Tick();
+        }
         ReapplyHotkeys();
     }
 
@@ -393,7 +470,7 @@ internal sealed partial class WidgetWindow : Window
             {
                 runtime.DeviceId = null;
                 runtime.InputId = null;
-                view.SetApp(icon, online: false, output: null, input: null, $"{config.Name} — fechado");
+                view.SetApp(icon, online: false, output: null, input: null, L("{0} — fechado", config.Name));
                 ShowHotkeys(view, config);
                 continue;
             }
@@ -409,11 +486,11 @@ internal sealed partial class WidgetWindow : Window
             runtime.InputId = ReadPinned(runtime.Pids, EDataFlow.Capture);
 
             var effective = runtime.DeviceId ?? _defaultOutputId;
-            var outputName = NameOf(_outputs, effective) ?? "dispositivo desconhecido";
-            var suffix = runtime.DeviceId == null ? " (padrão do sistema)" : "";
+            var outputName = NameOf(_outputs, effective) ?? L("dispositivo desconhecido");
+            var suffix = runtime.DeviceId == null ? L(" (padrão do sistema)") : "";
             view.SetApp(icon, online: true, BadgeFor(effective, input: false), BadgeFor(runtime.InputId, input: true),
                 $"{config.Name} → {outputName}{suffix}");
-            view.SetInput(runtime.InputId == null ? null : NameOf(_inputs, runtime.InputId) ?? "dispositivo desconhecido");
+            view.SetInput(runtime.InputId == null ? null : NameOf(_inputs, runtime.InputId) ?? L("dispositivo desconhecido"));
             view.SetMuted(runtime.Pids.Any(pid => audio.TryGetValue(pid, out var state) && state.Muted));
             ShowHotkeys(view, config);
         }
@@ -562,10 +639,10 @@ internal sealed partial class WidgetWindow : Window
         var runtime = _runtime[slot];
 
         var flyout = new Flyout();
-        flyout.AddHeader(Icons.Get(config.ExePath), config.Name, "Saída de áudio e microfone");
+        flyout.AddHeader(Icons.Get(config.ExePath), config.Name, L("Saída de áudio e microfone"));
 
-        flyout.AddLabel("Saída de áudio");
-        flyout.AddItem("Padrão do sistema", () => Apply(slot, null),
+        flyout.AddLabel(L("Saída de áudio"));
+        flyout.AddItem(L("Padrão do sistema"), () => Apply(slot, null),
             badge: BadgeFor(_defaultOutputId, input: false), isChecked: runtime.DeviceId == null);
         foreach (var device in _outputs.OrderBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase))
         {
@@ -581,8 +658,8 @@ internal sealed partial class WidgetWindow : Window
         if (_inputs.Count > 0)
         {
             flyout.AddSeparator();
-            flyout.AddLabel("Microfone");
-            flyout.AddItem("Padrão do sistema", () => ApplyInput(slot, null),
+            flyout.AddLabel(L("Microfone"));
+            flyout.AddItem(L("Padrão do sistema"), () => ApplyInput(slot, null),
                 badge: BadgeFor(_defaultInputId, input: true), isChecked: runtime.InputId == null);
             foreach (var device in _inputs.OrderBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase))
             {
@@ -604,11 +681,11 @@ internal sealed partial class WidgetWindow : Window
         var apps = Apps.ListOpenApps(taken);
 
         var flyout = new Flyout();
-        flyout.AddHeader(null, $"Slot {slot + 1}", "Escolha um app que esteja aberto");
-        AddAppSection(flyout, "Com áudio", apps.Where(a => a.HasAudio), slot);
-        AddAppSection(flyout, "Outros apps abertos", apps.Where(a => !a.HasAudio), slot);
+        flyout.AddHeader(null, L("Slot {0}", slot + 1), L("Escolha um app que esteja aberto"));
+        AddAppSection(flyout, L("Com áudio"), apps.Where(a => a.HasAudio), slot);
+        AddAppSection(flyout, L("Outros apps abertos"), apps.Where(a => !a.HasAudio), slot);
         if (apps.Count == 0)
-            flyout.AddLabel("Nenhum app aberto encontrado");
+            flyout.AddLabel(L("Nenhum app aberto encontrado"));
         Present(flyout, _views[slot], slot);
     }
 
@@ -633,29 +710,29 @@ internal sealed partial class WidgetWindow : Window
         if (config != null)
         {
             var running = _runtime[slot].Pids.Count > 0;
-            flyout.AddHeader(Icons.Get(config.ExePath), config.Name, running ? $"Slot {slot + 1}" : $"Slot {slot + 1} — app fechado");
-            flyout.AddItem("Trocar app…", () => ShowPicker(slot));
+            flyout.AddHeader(Icons.Get(config.ExePath), config.Name, running ? L("Slot {0}", slot + 1) : L("Slot {0} — app fechado", slot + 1));
+            flyout.AddItem(L("Trocar app…"), () => ShowPicker(slot));
             flyout.AddSeparator();
-            flyout.AddLabel("Atalhos");
+            flyout.AddLabel(L("Atalhos"));
             foreach (var action in SlotActions)
-                flyout.AddItem(ActionTitle(action), () => ShowSlotHotkeyCapture(slot, action), trailing: config.HotkeyFor(action)?.ToString() ?? "definir…");
+                flyout.AddItem(ActionTitle(action), () => ShowSlotHotkeyCapture(slot, action), trailing: config.HotkeyFor(action)?.ToString() ?? L("definir…"));
             flyout.AddSeparator();
-            flyout.AddItem("Esvaziar slot", () => Clear(slot));
+            flyout.AddItem(L("Esvaziar slot"), () => Clear(slot));
         }
         else
         {
-            flyout.AddHeader(null, $"Slot {slot + 1}", "Vazio");
-            flyout.AddItem("Escolher app…", () => ShowPicker(slot));
+            flyout.AddHeader(null, L("Slot {0}", slot + 1), L("Vazio"));
+            flyout.AddItem(L("Escolher app…"), () => ShowPicker(slot));
             flyout.AddSeparator();
         }
-        flyout.AddItem("Remover slot", () => RemoveSlot(slot));
+        flyout.AddItem(L("Remover slot"), () => RemoveSlot(slot));
         Present(flyout, view, slot);
     }
 
     /// <summary>The line under the output list that explains the ↻ switch at the right of each row.</summary>
     static string CycleNote(SlotConfig config) =>
-        "↻ à direita: a saída entra no ciclo do atalho \"Alternar saída\". Clique no ícone, ou no botão direito sobre a linha, para marcar ou tirar." +
-        (config.Hotkey == null ? " Este slot ainda não tem o atalho: botão direito no slot › Atalhos." : "");
+        L("↻ à direita: a saída entra no ciclo do atalho \"Alternar saída\". Clique no ícone, ou no botão direito sobre a linha, para marcar ou tirar.") +
+        (config.Hotkey == null ? L(" Este slot ainda não tem o atalho: botão direito no slot › Atalhos.") : "");
 
     /// <summary>Whether the slot's shortcut steps through an output. A skipped output stays in the slot menu; only the shortcut ignores it.</summary>
     void SetInCycle(SlotConfig config, string deviceId, bool included)
@@ -670,14 +747,14 @@ internal sealed partial class WidgetWindow : Window
     {
         Refresh();
         var flyout = new Flyout();
-        var flavor = Updater.IsSelfContained ? " (autônoma)" : "";
-        var news = _update is { } found ? $"  ·  nova: {found.Version.ToString(3)}" : "";
-        flyout.AddHeader(null, "SlotMixer", $"{_settings.Slots.Count} de {Settings.MaxSlots} slots  ·  versão {Installer.CurrentVersion.ToString(3)}{flavor}{news}");
+        var flavor = Updater.IsSelfContained ? L(" (autônoma)") : "";
+        var news = _update is { } found ? L("  ·  nova: {0}", found.Version.ToString(3)) : "";
+        flyout.AddHeader(null, "SlotMixer", L("{0} de {1} slots  ·  versão {2}", _settings.Slots.Count, Settings.MaxSlots, Installer.CurrentVersion.ToString(3)) + flavor + news);
         if (_settings.Slots.Count < Settings.MaxSlots)
-            flyout.AddItem("Adicionar slot", AddSlot);
+            flyout.AddItem(L("Adicionar slot"), AddSlot);
 
         flyout.AddSeparator();
-        flyout.AddLabel("Perfis");
+        flyout.AddLabel(L("Perfis"));
         for (var i = 0; i < _settings.Profiles.Count; i++)
         {
             var index = i;
@@ -685,18 +762,21 @@ internal sealed partial class WidgetWindow : Window
             var text = profile.Hotkey is { } hotkey ? $"{profile.Name}   ·   {hotkey}" : profile.Name;
             flyout.AddItem(text, () => ApplyProfile(index), isChecked: ProfileIsActive(profile));
         }
-        flyout.AddItem("Salvar estado atual como perfil…", () => ShowNamePrompt("Novo perfil", ""));
+        flyout.AddItem(L("Salvar estado atual como perfil…"), () => ShowNamePrompt(L("Novo perfil"), ""));
         if (_settings.Profiles.Count > 0)
-            flyout.AddItem("Gerenciar perfis…", ShowProfileList);
+            flyout.AddItem(L("Gerenciar perfis…"), ShowProfileList);
 
         flyout.AddSeparator();
-        flyout.AddItem("Ícones dos dispositivos…", ShowDeviceIcons);
-        flyout.AddItem("Mover o widget na barra…", StartMoving);
+        flyout.AddItem(L("Ícones dos dispositivos…"), ShowDeviceIcons);
+        flyout.AddItem(L("Mover o widget na barra…"), StartMoving);
         if (_settings.OffsetFromTray > 0.5)
-            flyout.AddItem("Voltar à posição original", ResetPosition);
+            flyout.AddItem(L("Voltar à posição original"), ResetPosition);
+        if (Monitors.All().Count > 1)
+            flyout.AddItem(L("Mostrar o widget: {0}", ShowOnLabel()), CycleShowOn);
 
         flyout.AddSeparator();
-        AddUpdateItems(flyout);
+        AddPendingUpdate(flyout);
+        flyout.AddItem(L("Ajuda e preferências…"), ShowHelpMenu);
         AddGeneralItems(flyout);
         Present(flyout, _header, HeaderSlot);
     }
@@ -705,9 +785,9 @@ internal sealed partial class WidgetWindow : Window
     void ShowDeviceIcons()
     {
         var flyout = new Flyout();
-        flyout.AddHeader(null, "Ícones dos dispositivos", "Clique para trocar o tipo do ícone");
-        AddKindRows(flyout, "Saídas", _outputs, input: false);
-        AddKindRows(flyout, "Microfones", _inputs, input: true);
+        flyout.AddHeader(null, L("Ícones dos dispositivos"), L("Clique para trocar o tipo do ícone"));
+        AddKindRows(flyout, L("Saídas"), _outputs, input: false);
+        AddKindRows(flyout, L("Microfones"), _inputs, input: true);
         Present(flyout, _header, HeaderSlot);
     }
 
@@ -731,12 +811,58 @@ internal sealed partial class WidgetWindow : Window
         }
     }
 
+    /// <summary>The "show on" row of the headset menu.</summary>
+    string ShowOnLabel() =>
+        string.Equals(_settings.ShowOn, "all", StringComparison.OrdinalIgnoreCase) ? L("em todos os monitores") : L("só no monitor principal");
+
+    /// <summary>Menu action (only with more than one display): the widget on the main taskbar only, or on every taskbar.</summary>
+    void CycleShowOn()
+    {
+        _settings.ShowOn = string.Equals(_settings.ShowOn, "all", StringComparison.OrdinalIgnoreCase) ? "primary" : "all";
+        _settings.Save();
+        s_primary?.SyncSecondaryWindows();
+        ShowHeaderMenu();
+    }
+
+    /// <summary>The language row of the headset menu: automatic (the Windows language), Portuguese, English; a click moves to the next.</summary>
+    string LanguageLabel() => (_settings.Language ?? "auto").ToLowerInvariant() switch
+    {
+        "pt" => "Português",
+        "en" => "English",
+        _ => L("Automático (Windows)"),
+    };
+
+    void CycleLanguage()
+    {
+        _settings.Language = (_settings.Language ?? "auto").ToLowerInvariant() switch { "auto" => "pt", "pt" => "en", _ => "auto" };
+        _settings.Save();
+        Loc.Init(_settings.Language);
+        Refresh();
+        ShowHelpMenu();
+    }
+
+    /// <summary>Everything that is about the program rather than about the audio: language, updates and support.</summary>
+    void ShowHelpMenu()
+    {
+        var flyout = new Flyout();
+        flyout.AddHeader(null, L("Ajuda e preferências"), L("Versão {0}{1}", Installer.CurrentVersion.ToString(3), Updater.IsSelfContained ? L(" (autônoma)") : ""));
+        flyout.AddItem(L("Idioma: {0}", LanguageLabel()), CycleLanguage);
+        flyout.AddSeparator();
+        flyout.AddLabel(L("Atualizações"));
+        AddUpdateSettings(flyout);
+        flyout.AddSeparator();
+        flyout.AddLabel(L("Suporte"));
+        flyout.AddItem(L("Copiar diagnóstico"), CopyDiagnostics);
+        flyout.AddItem(L("Reportar um problema…"), ReportProblem);
+        Present(flyout, _header, HeaderSlot);
+    }
+
     void AddGeneralItems(Flyout flyout)
     {
-        flyout.AddItem("Iniciar com o Windows", () => Startup.Set(!Startup.IsEnabled), isChecked: Startup.IsEnabled);
+        flyout.AddItem(L("Iniciar com o Windows"), () => Startup.Set(!Startup.IsEnabled), isChecked: Startup.IsEnabled);
         if (Installer.IsInstalled)
         {
-            flyout.AddItem("Desinstalar…", () =>
+            flyout.AddItem(L("Desinstalar…"), () =>
             {
                 System.Diagnostics.Process.Start(Environment.ProcessPath!, "--uninstall");
                 Application.Current.Shutdown();
@@ -744,13 +870,13 @@ internal sealed partial class WidgetWindow : Window
         }
         else
         {
-            flyout.AddItem("Instalar o SlotMixer…", () =>
+            flyout.AddItem(L("Instalar o SlotMixer…"), () =>
             {
                 if (Installer.InstallAndLaunch())
                     Application.Current.Shutdown();
             });
         }
-        flyout.AddItem("Sair", () => Application.Current.Shutdown());
+        flyout.AddItem(L("Sair"), () => Application.Current.Shutdown());
     }
 
     void ShowNotice(int slot, string title, string message)
@@ -797,8 +923,8 @@ internal sealed partial class WidgetWindow : Window
         if (applied)
             return;
 
-        ShowNotice(slot, _settings.Slots[slot]?.Name ?? $"Slot {slot + 1}",
-            "Este app ainda não abriu nenhum áudio. Toque algo nele e tente de novo.");
+        ShowNotice(slot, _settings.Slots[slot]?.Name ?? L("Slot {0}", slot + 1),
+            L("Este app ainda não abriu nenhum áudio. Toque algo nele e tente de novo."));
     }
 
     void ApplyInput(int slot, string? deviceId)
@@ -811,8 +937,8 @@ internal sealed partial class WidgetWindow : Window
         if (applied)
             return;
 
-        ShowNotice(slot, _settings.Slots[slot]?.Name ?? $"Slot {slot + 1}",
-            "Este app ainda não usou o microfone. Use o microfone nele (por exemplo, entrando numa chamada) e tente de novo.");
+        ShowNotice(slot, _settings.Slots[slot]?.Name ?? L("Slot {0}", slot + 1),
+            L("Este app ainda não usou o microfone. Use o microfone nele (por exemplo, entrando numa chamada) e tente de novo."));
     }
 
     // ---- profiles ----------------------------------------------------------------------------------------------
@@ -843,7 +969,7 @@ internal sealed partial class WidgetWindow : Window
         var snapshot = SnapshotRunning();
         if (snapshot.Count == 0 && _defaultOutputId == null && _defaultInputId == null)
         {
-            _osd.Flash(null, name, "Nenhum app dos slots está aberto, não há o que salvar", null);
+            _osd.Flash(null, name, L("Nenhum app dos slots está aberto, não há o que salvar"), null);
             return;
         }
 
@@ -875,7 +1001,7 @@ internal sealed partial class WidgetWindow : Window
         profile.DefaultInputId = _defaultInputId;
 
         _settings.Save();
-        _osd.Flash(null, profile.Name, $"Perfil salvo com {profile.Entries.Count} app(s) e o padrão do Windows", null);
+        _osd.Flash(null, profile.Name, L("Perfil salvo com {0} app(s) e o padrão do Windows", profile.Entries.Count), null);
     }
 
     void DeleteProfile(int index)
@@ -887,7 +1013,7 @@ internal sealed partial class WidgetWindow : Window
         _settings.Profiles.RemoveAt(index);
         _settings.Save();
         ReapplyHotkeys();
-        _osd.Flash(null, name, "Perfil excluído", null);
+        _osd.Flash(null, name, L("Perfil excluído"), null);
     }
 
     /// <summary>True when every app of the profile that is open right now is set up exactly as the profile says.</summary>
@@ -951,12 +1077,12 @@ internal sealed partial class WidgetWindow : Window
 
         Refresh();
 
-        var summary = (systemChanged ? "padrão do Windows  ·  " : "") + $"{done} app(s) ajustado(s)";
+        var summary = (systemChanged ? L("padrão do Windows  ·  ") : "") + L("{0} app(s) ajustado(s)", done);
         if (closed > 0)
-            summary += $"  ·  {closed} fechado(s)";
+            summary += L("  ·  {0} fechado(s)", closed);
         if (noAudio.Count > 0)
-            summary += $"  ·  sem áudio ainda: {string.Join(", ", noAudio)}";
-        _osd.Flash(null, $"Perfil: {profile.Name}", summary, null);
+            summary += L("  ·  sem áudio ainda: {0}", string.Join(", ", noAudio));
+        _osd.Flash(null, L("Perfil: {0}", profile.Name), summary, null);
     }
 
     /// <summary>Applies the wanted device unless the app already has it; an unchanged setting never counts as a failure.</summary>
@@ -965,10 +1091,10 @@ internal sealed partial class WidgetWindow : Window
 
     string Describe(ProfileEntry entry)
     {
-        var output = entry.OutputId == null ? "saída padrão" : NameOf(_outputs, entry.OutputId) ?? "saída indisponível";
+        var output = entry.OutputId == null ? L("saída padrão") : NameOf(_outputs, entry.OutputId) ?? L("saída indisponível");
         var text = $"{entry.Name} → {output}";
         if (entry.InputId != null)
-            text += $"  ·  mic: {NameOf(_inputs, entry.InputId) ?? "indisponível"}";
+            text += L("  ·  mic: {0}", NameOf(_inputs, entry.InputId) ?? L("indisponível"));
         return text;
     }
 
@@ -989,14 +1115,14 @@ internal sealed partial class WidgetWindow : Window
         };
         var hint = new TextBlock
         {
-            Text = "Enter salva  ·  Esc cancela",
+            Text = L("Enter salva  ·  Esc cancela"),
             FontSize = 11,
             Foreground = theme.SubText,
             Margin = new Thickness(10, 0, 10, 8),
         };
 
         var flyout = new Flyout();
-        flyout.AddHeader(null, title, "Dê um nome (por exemplo: Jogo, Reunião, Música)");
+        flyout.AddHeader(null, title, L("Dê um nome (por exemplo: Jogo, Reunião, Música)"));
         flyout.AddContent(box);
         flyout.AddContent(hint);
 
@@ -1022,7 +1148,7 @@ internal sealed partial class WidgetWindow : Window
     void ShowProfileList()
     {
         var flyout = new Flyout();
-        flyout.AddHeader(null, "Perfis", "Escolha um para gerenciar");
+        flyout.AddHeader(null, L("Perfis"), L("Escolha um para gerenciar"));
         for (var i = 0; i < _settings.Profiles.Count; i++)
         {
             var index = i;
@@ -1040,21 +1166,21 @@ internal sealed partial class WidgetWindow : Window
 
         var profile = _settings.Profiles[index];
         var flyout = new Flyout();
-        flyout.AddHeader(null, profile.Name, $"{profile.Entries.Count} app(s)");
-        flyout.AddItem("Aplicar agora", () => ApplyProfile(index));
-        flyout.AddItem("Atualizar com o estado atual", () => SaveProfile(profile.Name, index));
-        flyout.AddItem(profile.Hotkey is { } hotkey ? $"Atalho: {hotkey}  ·  alterar…" : "Definir atalho…",
+        flyout.AddHeader(null, profile.Name, L("{0} app(s)", profile.Entries.Count));
+        flyout.AddItem(L("Aplicar agora"), () => ApplyProfile(index));
+        flyout.AddItem(L("Atualizar com o estado atual"), () => SaveProfile(profile.Name, index));
+        flyout.AddItem(profile.Hotkey is { } hotkey ? L("Atalho: {0}  ·  alterar…", hotkey) : L("Definir atalho…"),
             () => ShowProfileHotkeyCapture(index));
         if (profile.Hotkey != null)
-            flyout.AddItem("Remover atalho", () => SetProfileHotkey(index, null));
-        flyout.AddItem("Excluir perfil", () => DeleteProfile(index));
+            flyout.AddItem(L("Remover atalho"), () => SetProfileHotkey(index, null));
+        flyout.AddItem(L("Excluir perfil"), () => DeleteProfile(index));
 
         flyout.AddSeparator();
-        flyout.AddLabel("O que este perfil faz");
+        flyout.AddLabel(L("O que este perfil faz"));
         if (profile.DefaultOutputId != null || profile.DefaultInputId != null)
         {
-            var microphone = profile.DefaultInputId == null ? "" : $"  ·  mic: {NameOf(_inputs, profile.DefaultInputId) ?? "indisponível"}";
-            flyout.AddNote($"{SystemTitle} → {NameOf(_outputs, profile.DefaultOutputId) ?? "saída indisponível"}{microphone}");
+            var microphone = profile.DefaultInputId == null ? "" : L("  ·  mic: {0}", NameOf(_inputs, profile.DefaultInputId) ?? L("indisponível"));
+            flyout.AddNote($"{SystemTitle} → {NameOf(_outputs, profile.DefaultOutputId) ?? L("saída indisponível")}{microphone}");
         }
         foreach (var entry in profile.Entries)
             flyout.AddNote(Describe(entry));
@@ -1066,7 +1192,7 @@ internal sealed partial class WidgetWindow : Window
     /// <summary>Registers the shortcut of every slot and profile. Safe to call again after any change.</summary>
     void ReapplyHotkeys()
     {
-        _hotkeys.UnregisterAll();
+        Hotkeys.UnregisterAll();
 
         foreach (var (i, config) in HotkeyOwners())
         {
@@ -1076,22 +1202,22 @@ internal sealed partial class WidgetWindow : Window
                     continue;
 
                 // Holding a volume shortcut keeps changing the volume; switching the output or muting fires once per press.
-                if (_hotkeys.TryRegister(HotkeyId(action, i), hotkey, repeat: action is SlotAction.VolumeUp or SlotAction.VolumeDown))
+                if (Hotkeys.TryRegister(HotkeyId(action, i), hotkey, repeat: action is SlotAction.VolumeUp or SlotAction.VolumeDown))
                     continue;
 
                 Log.Error(new InvalidOperationException($"Hotkey {hotkey} of {SlotLabel(i)} ({config.Name}) is taken by another program."));
-                _osd.Flash(Icons.Get(config.ExePath), config.Name, $"Atalho {hotkey} indisponível: já usado por outro programa", null);
+                _osd.Flash(Icons.Get(config.ExePath), config.Name, L("Atalho {0} indisponível: já usado por outro programa", hotkey), null);
             }
         }
 
         for (var i = 0; i < _settings.Profiles.Count; i++)
         {
             var profile = _settings.Profiles[i];
-            if (profile.Hotkey is not { } hotkey || _hotkeys.TryRegister(ProfileHotkeyBase + i + 1, hotkey))
+            if (profile.Hotkey is not { } hotkey || Hotkeys.TryRegister(ProfileHotkeyBase + i + 1, hotkey))
                 continue;
 
             Log.Error(new InvalidOperationException($"Hotkey {hotkey} of profile {profile.Name} is taken by another program."));
-            _osd.Flash(null, profile.Name, $"Atalho {hotkey} indisponível: já usado por outro programa", null);
+            _osd.Flash(null, profile.Name, L("Atalho {0} indisponível: já usado por outro programa", hotkey), null);
         }
     }
 
@@ -1120,10 +1246,10 @@ internal sealed partial class WidgetWindow : Window
 
     static string ActionTitle(SlotAction action) => action switch
     {
-        SlotAction.VolumeUp => "Aumentar volume",
-        SlotAction.VolumeDown => "Diminuir volume",
-        SlotAction.ToggleMute => "Mudo",
-        _ => "Alternar saída",
+        SlotAction.VolumeUp => L("Aumentar volume"),
+        SlotAction.VolumeDown => L("Diminuir volume"),
+        SlotAction.ToggleMute => L("Mudo"),
+        _ => L("Alternar saída"),
     };
 
     static void ShowHotkeys(SlotView view, SlotConfig config) =>
@@ -1163,7 +1289,7 @@ internal sealed partial class WidgetWindow : Window
         if (level is not { } value)
         {
             _views[slot].Flash(false);
-            _osd.Flash(icon, config.Name, pids.Count == 0 ? "App fechado" : "Este app ainda não abriu nenhum áudio", null);
+            _osd.Flash(icon, config.Name, pids.Count == 0 ? L("App fechado") : L("Este app ainda não abriu nenhum áudio"), null);
             return;
         }
 
@@ -1171,7 +1297,7 @@ internal sealed partial class WidgetWindow : Window
         _views[slot].SetVolume(percent);
         if (delta > 0)
             _views[slot].SetMuted(false);       // raising the volume also unmutes
-        _osd.Flash(icon, config.Name, $"Volume {percent}%", null, value);
+        _osd.Flash(icon, config.Name, L("Volume {0}%", percent), null, value);
     }
 
     /// <summary>The mute shortcut of a slot was pressed: flip the mute of its app and say which way it went.</summary>
@@ -1205,13 +1331,13 @@ internal sealed partial class WidgetWindow : Window
         if (muted is not { } now)
         {
             view.Flash(false);
-            _osd.Flash(icon, config.Name, pids.Count == 0 ? "App fechado" : "Este app ainda não abriu nenhum áudio", null);
+            _osd.Flash(icon, config.Name, pids.Count == 0 ? L("App fechado") : L("Este app ainda não abriu nenhum áudio"), null);
             return;
         }
 
         view.SetMuted(now);
         view.Flash(true);
-        _osd.Flash(icon, config.Name, now ? "Mudo" : "Som ativado", new DeviceBadge(now ? "" : "", Theme.Current.Text));
+        _osd.Flash(icon, config.Name, now ? L("Mudo") : L("Som ativado"), new DeviceBadge(now ? "" : "", Theme.Current.Text));
     }
 
     /// <summary>
@@ -1241,7 +1367,7 @@ internal sealed partial class WidgetWindow : Window
         var pids = Apps.FindPids(config.ExePath);
         if (pids.Count == 0)
         {
-            Fail("App fechado");
+            Fail(L("App fechado"));
             return;
         }
 
@@ -1255,7 +1381,7 @@ internal sealed partial class WidgetWindow : Window
         catch (Exception ex)
         {
             Log.Error(ex);
-            Fail("Não foi possível ler as saídas de áudio");
+            Fail(L("Não foi possível ler as saídas de áudio"));
             return;
         }
 
@@ -1263,7 +1389,7 @@ internal sealed partial class WidgetWindow : Window
         var allowed = outputs.Where(Allowed).ToList();
         if (allowed.Count == 0)
         {
-            Fail("Nenhuma saída marcada para o atalho deste slot");
+            Fail(L("Nenhuma saída marcada para o atalho deste slot"));
             return;
         }
 
@@ -1285,20 +1411,20 @@ internal sealed partial class WidgetWindow : Window
         Log.Trace($"cycle slot {slot + 1}: pids={pids.Count} current={NameOf(outputs, current)} target={target?.Name}");
         if (target == null || SameId(target.Id, current))
         {
-            Fail("Só há uma saída marcada para o atalho deste slot");
+            Fail(L("Só há uma saída marcada para o atalho deste slot"));
             return;
         }
 
         if (!TryApply(pids, target.Id, EDataFlow.Render))
         {
             Log.Trace("cycle: no process accepted the change");
-            Fail("Este app ainda não abriu nenhum áudio");
+            Fail(L("Este app ainda não abriu nenhum áudio"));
             return;
         }
 
         Refresh();
         view.Flash(true);
-        _osd.Flash(icon, config.Name, $"{target.Name}  ·  {allowed.IndexOf(target) + 1} de {allowed.Count}", BadgeFor(target.Id, input: false));
+        _osd.Flash(icon, config.Name, L("{0}  ·  {1} de {2}", target.Name, allowed.IndexOf(target) + 1, allowed.Count), BadgeFor(target.Id, input: false));
     }
 
     void SetHotkey(int slot, SlotAction action, Hotkey? hotkey)
@@ -1311,7 +1437,7 @@ internal sealed partial class WidgetWindow : Window
         ReapplyHotkeys();
         Refresh();
         _osd.Flash(Icons.Get(config.ExePath), config.Name,
-            hotkey == null ? $"{ActionTitle(action, slot)}: atalho removido" : $"{ActionTitle(action, slot)}: {hotkey}", null);
+            hotkey == null ? L("{0}: atalho removido", ActionTitle(action, slot)) : $"{ActionTitle(action, slot)}: {hotkey}", null);
     }
 
     void SetProfileHotkey(int index, Hotkey? hotkey)
@@ -1323,7 +1449,7 @@ internal sealed partial class WidgetWindow : Window
         profile.Hotkey = hotkey;
         _settings.Save();
         ReapplyHotkeys();
-        _osd.Flash(null, profile.Name, hotkey == null ? "Atalho removido" : $"Atalho definido: {hotkey}", null);
+        _osd.Flash(null, profile.Name, hotkey == null ? L("Atalho removido") : L("Atalho definido: {0}", hotkey), null);
     }
 
     /// <summary>Who owns a shortcut already ("slot 2 (aumentar volume)", "perfil Jogo"), ignoring the one being edited (<paramref name="exceptId"/>).</summary>
@@ -1340,7 +1466,7 @@ internal sealed partial class WidgetWindow : Window
         for (var i = 0; i < _settings.Profiles.Count; i++)
         {
             if (ProfileHotkeyBase + i + 1 != exceptId && hotkey.SameAs(_settings.Profiles[i].Hotkey))
-                return $"perfil {_settings.Profiles[i].Name}";
+                return L("perfil {0}", _settings.Profiles[i].Name);
         }
         return null;
     }
@@ -1350,7 +1476,7 @@ internal sealed partial class WidgetWindow : Window
         if (ConfigAt(slot) is not { } config || ViewAt(slot) is not { } view)
             return;
 
-        ShowHotkeyCapture(Icons.Get(config.ExePath), config.Name, $"Atalho: {ActionTitle(action, slot).ToLowerInvariant()}", config.HotkeyFor(action),
+        ShowHotkeyCapture(Icons.Get(config.ExePath), config.Name, L("Atalho: {0}", ActionTitle(action, slot).ToLowerInvariant()), config.HotkeyFor(action),
             hotkey => OwnerOf(hotkey, HotkeyId(action, slot)), hotkey => SetHotkey(slot, action, hotkey), view, slot);
     }
 
@@ -1360,7 +1486,7 @@ internal sealed partial class WidgetWindow : Window
             return;
 
         var profile = _settings.Profiles[index];
-        ShowHotkeyCapture(null, profile.Name, "Atalho para aplicar este perfil", profile.Hotkey,
+        ShowHotkeyCapture(null, profile.Name, L("Atalho para aplicar este perfil"), profile.Hotkey,
             hotkey => OwnerOf(hotkey, ProfileHotkeyBase + index + 1), hotkey => SetProfileHotkey(index, hotkey), _header, HeaderSlot);
     }
 
@@ -1370,10 +1496,10 @@ internal sealed partial class WidgetWindow : Window
     {
         // Windows hands a registered shortcut to its owner instead of the focused window,
         // so release ours while recording (re-registered when the recorder closes).
-        _hotkeys.UnregisterAll();
+        Hotkeys.UnregisterAll();
 
         var theme = Theme.Current;
-        var idle = current?.ToString() ?? "Nenhum";
+        var idle = current?.ToString() ?? L("Nenhum");
 
         var combo = new TextBlock
         {
@@ -1394,7 +1520,7 @@ internal sealed partial class WidgetWindow : Window
         };
         var hint = new TextBlock
         {
-            Text = "Pressione a combinação desejada.\nEsc cancela  ·  Backspace remove o atalho.",
+            Text = L("Pressione a combinação desejada.\nEsc cancela  ·  Backspace remove o atalho."),
             FontSize = 11,
             Foreground = theme.SubText,
             TextWrapping = TextWrapping.Wrap,
@@ -1438,15 +1564,15 @@ internal sealed partial class WidgetWindow : Window
             string? error = null;
             if (candidate == null)
             {
-                error = "Use Ctrl, Alt, Shift ou Win junto com outra tecla.";
+                error = L("Use Ctrl, Alt, Shift ou Win junto com outra tecla.");
             }
             else if (ownerOf(candidate) is { } owner)
             {
-                error = $"Esse atalho já é do {owner}.";
+                error = L("Esse atalho já é do {0}.", owner);
             }
-            else if (!_hotkeys.CanRegister(candidate))
+            else if (!Hotkeys.CanRegister(candidate))
             {
-                error = "Esse atalho já está em uso por outro programa.";
+                error = L("Esse atalho já está em uso por outro programa.");
             }
 
             if (error != null)
@@ -1475,7 +1601,8 @@ internal sealed partial class WidgetWindow : Window
 
     void Present(Flyout flyout, FrameworkElement anchor, int slot)
     {
-        if (!Taskbar.TryGetGeometry(out var bar, out _, out var scale))
+        var target = _target ?? Taskbar.Target(_taskbarHwnd);
+        if (target == null)
             return;
 
         CloseFlyout();
@@ -1490,7 +1617,10 @@ internal sealed partial class WidgetWindow : Window
         _flyout = flyout;
         _flyoutSlot = slot;
         var centerPx = anchor.PointToScreen(new Point(anchor.ActualWidth / 2, 0)).X;
-        flyout.ShowAbove(centerPx, bar.Top, scale, Native.GetSystemMetrics(Native.SmCxScreen));
+
+        // The menu opens on the display that has this taskbar, not on the main one.
+        var bounds = target.Monitor?.Bounds ?? new Native.Rect { Left = 0, Right = Native.GetSystemMetrics(Native.SmCxScreen) };
+        flyout.ShowAbove(centerPx, target.Bar.Top, target.Scale, bounds.Left, bounds.Right);
     }
 
     void CloseFlyout() => _flyout?.CloseNow();

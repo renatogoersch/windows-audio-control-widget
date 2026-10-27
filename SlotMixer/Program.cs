@@ -48,6 +48,7 @@ public static class Program
         }
 
         var settings = Settings.Load();
+        Loc.Init(settings.Language);
 
         if (Installer.ShouldOffer(settings, args))
         {

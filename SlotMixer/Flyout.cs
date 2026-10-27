@@ -162,8 +162,8 @@ internal sealed class Flyout : Window
             {
                 glyph.Opacity = on ? 1 : 0.28;
                 chip.ToolTip = on
-                    ? "Esta saída entra no ciclo do atalho. Clique para tirar."
-                    : "Esta saída fica fora do ciclo do atalho. Clique para incluir.";
+                    ? L("Esta saída entra no ciclo do atalho. Clique para tirar.")
+                    : L("Esta saída fica fora do ciclo do atalho. Clique para incluir.");
             }
 
             void Flip()
@@ -305,19 +305,23 @@ internal sealed class Flyout : Window
         };
     }
 
-    /// <summary>Opens centered above <paramref name="anchorCenterPx"/>, just over the taskbar. Coordinates are physical pixels.</summary>
-    public void ShowAbove(double anchorCenterPx, double taskbarTopPx, double scale, double screenWidthPx)
+    /// <summary>
+    /// Opens centered above <paramref name="anchorCenterPx"/>, just over the taskbar, inside the display that spans
+    /// <paramref name="monitorLeftPx"/>..<paramref name="monitorRightPx"/> (that display's <paramref name="scale"/>).
+    /// Coordinates are physical pixels, so it lands in the right place whatever the DPI of the display.
+    /// </summary>
+    public void ShowAbove(double anchorCenterPx, double taskbarTopPx, double scale, double monitorLeftPx, double monitorRightPx)
     {
         _card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var size = _card.DesiredSize;
 
-        var left = anchorCenterPx / scale - size.Width / 2;
-        var maxLeft = screenWidthPx / scale - size.Width + ShadowMargin - 4;
-        Left = Math.Clamp(left, ShadowMargin * -1 + 4, maxLeft);
-        Top = taskbarTopPx / scale - size.Height + ShadowMargin - 6;
+        var (x, y) = Layout.FlyoutPosition(anchorCenterPx, taskbarTopPx, size.Width * scale, size.Height * scale,
+            scale, monitorLeftPx, monitorRightPx, ShadowMargin * scale);
 
         Show();
+        var hwnd = new WindowInteropHelper(this).Handle;
+        Native.SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, Native.SwpNoSize | Native.SwpNoZOrder | Native.SwpNoActivate);
         Activate();
-        Native.SetForegroundWindow(new WindowInteropHelper(this).Handle);
+        Native.SetForegroundWindow(hwnd);
     }
 }

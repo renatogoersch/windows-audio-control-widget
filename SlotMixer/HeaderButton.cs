@@ -58,8 +58,8 @@ internal sealed class HeaderButton : HoverBorder
         _headset.Foreground = theme.SubText;
         _plus.Foreground = theme.Text;
         _headset.Opacity = canAdd ? 1 : 0.6;
-        var menu = "Botão direito: menu do SlotMixer";
-        _tip.Content = canAdd ? $"Clique: adicionar slot\n{menu}" : $"Limite de {Settings.MaxSlots} slots\n{menu}";
+        var menu = L("Botão direito: menu do SlotMixer");
+        _tip.Content = canAdd ? L("Clique: adicionar slot\n{0}", menu) : L("Limite de {0} slots\n{1}", Settings.MaxSlots, menu);
     }
 
     /// <summary>The tooltip is not part of the visual tree, so a new theme has to be handed to it directly.</summary>

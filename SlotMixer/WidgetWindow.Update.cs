@@ -13,17 +13,17 @@ internal sealed partial class WidgetWindow
     static readonly TimeSpan CheckEvery = TimeSpan.FromHours(6);
     static readonly TimeSpan RetryAfterFailure = TimeSpan.FromMinutes(30);
 
-    readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromMinutes(1) };
+    static readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromMinutes(1) };
 
     /// <summary>A release newer than this copy, once one has been found.</summary>
-    UpdateInfo? _update;
+    static UpdateInfo? _update;
 
     /// <summary>Its exe, downloaded and checked, waiting for a moment when restarting the widget will not bother anyone.</summary>
-    string? _updateExe;
+    static string? _updateExe;
 
-    bool _updateBusy;
-    Version? _announced;
-    DateTime _nextCheck;
+    static bool _updateBusy;
+    static Version? _announced;
+    static DateTime _nextCheck;
 
     void InitUpdates()
     {
@@ -50,7 +50,7 @@ internal sealed partial class WidgetWindow
             return;
 
         if (Version.TryParse(_settings.LastVersion, out var before) && before < Installer.CurrentVersion)
-            _osd.Flash(null, "SlotMixer atualizado", $"Agora na versão {current}", null);
+            _osd.Flash(null, L("SlotMixer atualizado"), L("Agora na versão {0}", current), null);
 
         _settings.LastVersion = current;
         _settings.Save();
@@ -99,14 +99,14 @@ internal sealed partial class WidgetWindow
             if (found == null)
             {
                 if (manual)
-                    _osd.Flash(null, "SlotMixer", $"Você já está na versão mais recente ({Installer.CurrentVersion.ToString(3)})", null);
+                    _osd.Flash(null, "SlotMixer", L("Você já está na versão mais recente ({0})", Installer.CurrentVersion.ToString(3)), null);
                 return;
             }
 
             if (Installer.IsInstalled && (manual || _settings.AutoUpdate))
             {
                 if (manual)
-                    _osd.Flash(null, "SlotMixer", $"Baixando a versão {found.Version.ToString(3)}…", null);
+                    _osd.Flash(null, "SlotMixer", L("Baixando a versão {0}…", found.Version.ToString(3)), null);
 
                 _updateExe = await Updater.DownloadAsync(found, CancellationToken.None);
                 if (manual || CanRestartNow())
@@ -115,7 +115,7 @@ internal sealed partial class WidgetWindow
             else if (_announced != found.Version)
             {
                 _announced = found.Version;
-                _osd.Flash(null, "Nova versão do SlotMixer", $"A versão {found.Version.ToString(3)} está disponível: botão direito no headset", null);
+                _osd.Flash(null, L("Nova versão do SlotMixer"), L("A versão {0} está disponível: botão direito no headset", found.Version.ToString(3)), null);
             }
         }
         catch (Exception ex)
@@ -124,7 +124,7 @@ internal sealed partial class WidgetWindow
             Log.Trace($"update check failed: {ex.Message}");
             _nextCheck = DateTime.UtcNow + RetryAfterFailure;
             if (manual)
-                _osd.Flash(null, "SlotMixer", "Não foi possível verificar as atualizações. Confira a conexão e tente de novo.", null);
+                _osd.Flash(null, "SlotMixer", L("Não foi possível verificar as atualizações. Confira a conexão e tente de novo."), null);
         }
         finally
         {
@@ -163,7 +163,7 @@ internal sealed partial class WidgetWindow
             return;
 
         _updateTimer.Stop();
-        _osd.Flash(null, "Atualizando o SlotMixer", $"Para a versão {info.Version.ToString(3)}. O widget volta em instantes.", null);
+        _osd.Flash(null, L("Atualizando o SlotMixer"), L("Para a versão {0}. O widget volta em instantes.", info.Version.ToString(3)), null);
 
         var delay = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
         delay.Tick += (_, _) =>
@@ -178,26 +178,30 @@ internal sealed partial class WidgetWindow
             {
                 Log.Error(ex);
                 _updateExe = null;
-                _osd.Flash(null, "SlotMixer", "Não foi possível instalar a atualização.", null);
+                _osd.Flash(null, "SlotMixer", L("Não foi possível instalar a atualização."), null);
                 _updateTimer.Start();
             }
         };
         delay.Start();
     }
 
-    /// <summary>The three rows of the headset menu about updates.</summary>
-    void AddUpdateItems(Flyout flyout)
+    /// <summary>The row of the headset menu that offers a pending update.</summary>
+    void AddPendingUpdate(Flyout flyout)
     {
-        if (_update is { } pending)
-        {
-            var text = Installer.IsInstalled
-                ? $"Atualizar agora para a versão {pending.Version.ToString(3)}"
-                : $"Baixar a versão {pending.Version.ToString(3)}…";
-            flyout.AddItem(text, () => _ = UpdateNow());
-        }
+        if (_update is not { } pending)
+            return;
 
-        flyout.AddItem("Verificar atualizações agora", () => _ = CheckForUpdates(manual: true));
+        var text = Installer.IsInstalled
+            ? L("Atualizar agora para a versão {0}", pending.Version.ToString(3))
+            : L("Baixar a versão {0}…", pending.Version.ToString(3));
+        flyout.AddItem(text, () => _ = UpdateNow());
+    }
+
+    /// <summary>The two rows about updates that live in the help and preferences menu.</summary>
+    void AddUpdateSettings(Flyout flyout)
+    {
+        flyout.AddItem(L("Verificar atualizações agora"), () => _ = CheckForUpdates(manual: true));
         if (Installer.IsInstalled)
-            flyout.AddItem("Atualizar automaticamente", () => { _settings.AutoUpdate = !_settings.AutoUpdate; _settings.Save(); }, isChecked: _settings.AutoUpdate);
+            flyout.AddItem(L("Atualizar automaticamente"), () => { _settings.AutoUpdate = !_settings.AutoUpdate; _settings.Save(); }, isChecked: _settings.AutoUpdate);
     }
 }

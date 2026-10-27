@@ -80,6 +80,10 @@ internal sealed class Osd : Window
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.Manual;
+
+        // Off screen until Flash puts it where it belongs.
+        Left = -32000;
+        Top = -32000;
         UseLayoutRounding = true;
         FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI");
 
@@ -161,7 +165,7 @@ internal sealed class Osd : Window
             _bar.Visibility = Visibility.Collapsed;
         }
 
-        Place();
+        var position = Place();
 
         _timer.Stop();
         _timer.Start();
@@ -170,6 +174,7 @@ internal sealed class Osd : Window
         _card.BeginAnimation(OpacityProperty, null);
         if (wasVisible)
         {
+            Move(position);
             _card.Opacity = 1;
             return;
         }
@@ -177,24 +182,26 @@ internal sealed class Osd : Window
         _card.Opacity = 0;
         if (!IsVisible)
             Show();
+        Move(position);
         _card.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(110)));
     }
 
-    /// <summary>Bottom center of the primary monitor, just above the taskbar.</summary>
-    void Place()
+    /// <summary>Bottom center of the display the user is working on, just above its work area (so above its taskbar).</summary>
+    (int X, int Y) Place()
     {
         _card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var size = _card.DesiredSize;
 
-        var scale = 1.0;
-        double barTop = Native.GetSystemMetrics(Native.SmCyScreen);
-        if (Taskbar.TryGetGeometry(out var bar, out _, out var barScale))
-        {
-            scale = barScale;
-            barTop = Math.Min(bar.Top, barTop);
-        }
-
-        Left = Native.GetSystemMetrics(Native.SmCxScreen) / 2.0 / scale - size.Width / 2;
-        Top = (barTop - BottomGap * scale) / scale - size.Height;
+        var monitor = Monitors.OfUser() ?? Monitors.Primary();
+        var scale = monitor?.Scale ?? 1.0;
+        var left = monitor?.Bounds.Left ?? 0;
+        var right = monitor?.Bounds.Right ?? Native.GetSystemMetrics(Native.SmCxScreen);
+        var bottom = monitor?.Work.Bottom ?? Native.GetSystemMetrics(Native.SmCyScreen);
+        return Layout.OsdPosition(left, right, bottom, size.Width * scale, size.Height * scale, scale, BottomGap);
     }
+
+    /// <summary>In physical pixels, so the placement does not depend on the DPI of the display the window is moving to.</summary>
+    void Move((int X, int Y) position) =>
+        Native.SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, position.X, position.Y, 0, 0,
+            Native.SwpNoSize | Native.SwpNoZOrder | Native.SwpNoActivate);
 }

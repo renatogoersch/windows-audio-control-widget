@@ -10,7 +10,7 @@ namespace SlotMixer;
 /// </summary>
 internal sealed partial class WidgetWindow
 {
-    const string SystemTitle = "Padrão do Windows";
+    static string SystemTitle => L("Padrão do Windows");
 
     /// <summary>Index of the Windows slot in hotkey ids and menus; app slots use 0..MaxSlots-1.</summary>
     const int SystemSlotIndex = Settings.MaxSlots;
@@ -52,7 +52,7 @@ internal sealed partial class WidgetWindow
     void RefreshSystem()
     {
         var config = _settings.SystemSlot;
-        var outputName = NameOf(_outputs, _defaultOutputId) ?? "dispositivo desconhecido";
+        var outputName = NameOf(_outputs, _defaultOutputId) ?? L("dispositivo desconhecido");
 
         _divider.Background = Theme.Current.Divider;
         _system.SetSystem(BadgeFor(_defaultOutputId, input: false), $"{SystemTitle} → {outputName}");
@@ -73,9 +73,9 @@ internal sealed partial class WidgetWindow
         var config = _settings.SystemSlot;
 
         var flyout = new Flyout();
-        flyout.AddHeader(null, SystemTitle, "Vale para todo app que está em \"Padrão do sistema\"");
+        flyout.AddHeader(null, SystemTitle, L("Vale para todo app que está em \"Padrão do sistema\""));
 
-        flyout.AddLabel("Saída de áudio padrão");
+        flyout.AddLabel(L("Saída de áudio padrão"));
         foreach (var device in _outputs.OrderBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase))
         {
             var id = device.Id;
@@ -88,7 +88,7 @@ internal sealed partial class WidgetWindow
         if (_inputs.Count > 0)
         {
             flyout.AddSeparator();
-            flyout.AddLabel("Microfone padrão");
+            flyout.AddLabel(L("Microfone padrão"));
             foreach (var device in _inputs.OrderBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase))
             {
                 var id = device.Id;
@@ -105,21 +105,21 @@ internal sealed partial class WidgetWindow
     {
         var config = _settings.SystemSlot;
         var flyout = new Flyout();
-        flyout.AddHeader(null, SystemTitle, "Atalhos para a saída padrão e o volume geral");
-        flyout.AddLabel("Atalhos");
+        flyout.AddHeader(null, SystemTitle, L("Atalhos para a saída padrão e o volume geral"));
+        flyout.AddLabel(L("Atalhos"));
         foreach (var action in SlotActions)
         {
             flyout.AddItem(ActionTitle(action, SystemSlotIndex), () => ShowSlotHotkeyCapture(SystemSlotIndex, action),
-                trailing: config.HotkeyFor(action)?.ToString() ?? "definir…");
+                trailing: config.HotkeyFor(action)?.ToString() ?? L("definir…"));
         }
 
         flyout.AddSeparator();
-        flyout.AddItem("Trocar também o dispositivo de comunicação", () =>
+        flyout.AddItem(L("Trocar também o dispositivo de comunicação"), () =>
         {
             _settings.MoveCommunications = !MoveCommunications();
             _settings.Save();
         }, isChecked: MoveCommunications());
-        flyout.AddNote("O dispositivo de comunicação é o que chamadas de voz e vídeo usam, e pode ser diferente do padrão.");
+        flyout.AddNote(L("O dispositivo de comunicação é o que chamadas de voz e vídeo usam, e pode ser diferente do padrão."));
         Present(flyout, _system, SystemSlotIndex);
     }
 
@@ -148,13 +148,13 @@ internal sealed partial class WidgetWindow
         catch (Exception ex)
         {
             Log.Error(ex);
-            _osd.Flash(null, SystemTitle, "Não foi possível trocar o dispositivo padrão", null);
+            _osd.Flash(null, SystemTitle, L("Não foi possível trocar o dispositivo padrão"), null);
             return;
         }
 
         Refresh();
-        var name = NameOf(input ? _inputs : _outputs, deviceId) ?? "dispositivo";
-        _osd.Flash(null, SystemTitle, input ? $"Microfone: {name}" : name, BadgeFor(deviceId, input));
+        var name = NameOf(input ? _inputs : _outputs, deviceId) ?? L("dispositivo");
+        _osd.Flash(null, SystemTitle, input ? L("Microfone: {0}", name) : name, BadgeFor(deviceId, input));
     }
 
     /// <summary>The shortcut of the Windows slot: move the default output to the next one the slot allows.</summary>
@@ -178,7 +178,7 @@ internal sealed partial class WidgetWindow
         catch (Exception ex)
         {
             Log.Error(ex);
-            Fail("Não foi possível ler as saídas de áudio");
+            Fail(L("Não foi possível ler as saídas de áudio"));
             return;
         }
 
@@ -186,7 +186,7 @@ internal sealed partial class WidgetWindow
         var allowed = outputs.Where(Allowed).ToList();
         if (allowed.Count == 0)
         {
-            Fail("Nenhuma saída marcada para o atalho");
+            Fail(L("Nenhuma saída marcada para o atalho"));
             return;
         }
 
@@ -204,7 +204,7 @@ internal sealed partial class WidgetWindow
 
         if (target == null || SameId(target.Id, current))
         {
-            Fail("Só há uma saída marcada para o atalho");
+            Fail(L("Só há uma saída marcada para o atalho"));
             return;
         }
 
@@ -215,13 +215,13 @@ internal sealed partial class WidgetWindow
         catch (Exception ex)
         {
             Log.Error(ex);
-            Fail("Não foi possível trocar o dispositivo padrão");
+            Fail(L("Não foi possível trocar o dispositivo padrão"));
             return;
         }
 
         Refresh();
         _system.Flash(true);
-        _osd.Flash(null, SystemTitle, $"{target.Name}  ·  {allowed.IndexOf(target) + 1} de {allowed.Count}", BadgeFor(target.Id, input: false));
+        _osd.Flash(null, SystemTitle, L("{0}  ·  {1} de {2}", target.Name, allowed.IndexOf(target) + 1, allowed.Count), BadgeFor(target.Id, input: false));
     }
 
     void ChangeMasterVolume(float delta)
@@ -230,14 +230,14 @@ internal sealed partial class WidgetWindow
         if (level is not { } value)
         {
             _system.Flash(false);
-            _osd.Flash(null, SystemTitle, "Não foi possível ajustar o volume", null);
+            _osd.Flash(null, SystemTitle, L("Não foi possível ajustar o volume"), null);
             return;
         }
 
         _system.SetVolume(ToPercent(value));
         if (delta > 0)
             _system.SetMuted(false);
-        _osd.Flash(null, SystemTitle, $"Volume {ToPercent(value)}%", BadgeFor(_defaultOutputId, input: false), value);
+        _osd.Flash(null, SystemTitle, L("Volume {0}%", ToPercent(value)), BadgeFor(_defaultOutputId, input: false), value);
     }
 
     void ToggleMasterMute()
@@ -245,13 +245,13 @@ internal sealed partial class WidgetWindow
         if (SystemAudio.ToggleMasterMute() is not { } muted)
         {
             _system.Flash(false);
-            _osd.Flash(null, SystemTitle, "Não foi possível alterar o mudo", null);
+            _osd.Flash(null, SystemTitle, L("Não foi possível alterar o mudo"), null);
             return;
         }
 
         _system.SetMuted(muted);
         _system.Flash(true);
-        _osd.Flash(null, SystemTitle, muted ? "Mudo" : "Som ativado", new DeviceBadge(muted ? "" : "", Theme.Current.Text));
+        _osd.Flash(null, SystemTitle, muted ? L("Mudo") : L("Som ativado"), new DeviceBadge(muted ? "" : "", Theme.Current.Text));
     }
 
     void ShowSystemVolume()
@@ -318,13 +318,13 @@ internal sealed partial class WidgetWindow
         : slot >= 0 && slot < _views.Count ? _views[slot]
         : null;
 
-    static string SlotLabel(int slot) => slot == SystemSlotIndex ? "slot do Windows" : $"slot {slot + 1}";
+    static string SlotLabel(int slot) => slot == SystemSlotIndex ? L("slot do Windows") : L("slot {0}", slot + 1);
 
     static string ActionTitle(SlotAction action, int slot) => slot != SystemSlotIndex ? ActionTitle(action) : action switch
     {
-        SlotAction.VolumeUp => "Aumentar volume geral",
-        SlotAction.VolumeDown => "Diminuir volume geral",
-        SlotAction.ToggleMute => "Mudo geral",
-        _ => "Alternar saída padrão",
+        SlotAction.VolumeUp => L("Aumentar volume geral"),
+        SlotAction.VolumeDown => L("Diminuir volume geral"),
+        SlotAction.ToggleMute => L("Mudo geral"),
+        _ => L("Alternar saída padrão"),
     };
 }
