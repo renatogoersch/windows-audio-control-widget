@@ -63,6 +63,23 @@ internal sealed class SlotConfig
     public List<string> ExcludedOutputs { get; set; } = new();
 }
 
+/// <summary>
+/// The game/chat balance: two apps and the shortcuts that move the volume between them, like the dial of a headset
+/// (more chat lowers the game, more game lowers the chat; the middle puts both back).
+/// </summary>
+internal sealed class BalanceConfig
+{
+    public string? GameApp { get; set; }
+    public string? GameName { get; set; }
+    public string? ChatApp { get; set; }
+    public string? ChatName { get; set; }
+    public Hotkey? MoreGameHotkey { get; set; }
+    public Hotkey? MoreChatHotkey { get; set; }
+    public Hotkey? CenterHotkey { get; set; }
+
+    public bool IsReady => GameApp != null && ChatApp != null;
+}
+
 /// <summary>What one app does while a profile is active; null ids mean "follow the system default".</summary>
 internal sealed class ProfileEntry
 {
@@ -82,6 +99,17 @@ internal sealed class Profile
 
     public string? DefaultInputId { get; set; }
     public List<ProfileEntry> Entries { get; set; } = new();
+
+    /// <summary>Apply this profile by itself when this program starts (full path; matched by file name) ...</summary>
+    public string? TriggerApp { get; set; }
+
+    public string? TriggerAppName { get; set; }
+
+    /// <summary>... or when this audio device (an output or a microphone) shows up.</summary>
+    public string? TriggerDeviceId { get; set; }
+
+    /// <summary>Put everything back as it was when the trigger goes away (the program closes, the device is unplugged).</summary>
+    public bool RevertOnEnd { get; set; } = true;
 }
 
 internal sealed class Settings
@@ -108,6 +136,8 @@ internal sealed class Settings
     /// slides along the taskbar, so there is no vertical part.
     /// </summary>
     public double OffsetFromTray { get; set; }
+
+    public BalanceConfig Balance { get; set; } = new();
 
     /// <summary>Whether a slot shows a thin line while its app is playing sound.</summary>
     public bool ShowActivity { get; set; } = true;
@@ -159,6 +189,7 @@ internal sealed class Settings
                 foreach (var profile in loaded.Profiles)
                     profile.Entries ??= new List<ProfileEntry>();
                 loaded.DeviceKinds ??= new Dictionary<string, DeviceKind>();
+                loaded.Balance ??= new BalanceConfig();
                 if (!(loaded.OffsetFromTray >= 0))
                     loaded.OffsetFromTray = 0;
                 loaded.SystemSlot ??= new SlotConfig { Name = "Padrão do Windows" };

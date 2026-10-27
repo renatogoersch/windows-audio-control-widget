@@ -37,6 +37,7 @@ internal sealed partial class WidgetWindow : Window
     const int VolumeDownHotkeyBase = 2000;
     const int MuteHotkeyBase = 3000;
     const int MicMuteHotkeyBase = 4000;
+    const int BalanceHotkeyBase = 5000;
 
     static readonly SlotAction[] SlotActions =
         { SlotAction.CycleOutput, SlotAction.VolumeUp, SlotAction.VolumeDown, SlotAction.ToggleMute };
@@ -154,7 +155,10 @@ internal sealed partial class WidgetWindow : Window
             {
                 Refresh();
                 if (_isPrimary)
+                {
                     SyncSecondaryWindows();
+                    CheckAutoProfiles();
+                }
             }
         };
     }
@@ -779,6 +783,7 @@ internal sealed partial class WidgetWindow : Window
 
         flyout.AddSeparator();
         flyout.AddItem(L("Ícones dos dispositivos…"), ShowDeviceIcons);
+        flyout.AddItem(L("Equilíbrio jogo/chat…"), ShowBalanceMenu);
         flyout.AddItem(L("Mover o widget na barra…"), StartMoving);
         if (_settings.OffsetFromTray > 0.5)
             flyout.AddItem(L("Voltar à posição original"), ResetPosition);
@@ -1053,11 +1058,19 @@ internal sealed partial class WidgetWindow : Window
 
     void ApplyProfile(int index)
     {
-        if (index < 0 || index >= _settings.Profiles.Count)
-            return;
+        if (index >= 0 && index < _settings.Profiles.Count)
+            ApplyProfile(_settings.Profiles[index]);
+    }
 
-        var profile = _settings.Profiles[index];
+    /// <summary>What applying a profile achieved: apps set, apps not open, apps that have not opened audio yet.</summary>
+    readonly record struct ProfileResult(int Done, int Closed, List<string> NoAudio, bool SystemChanged);
 
+    /// <summary>
+    /// Applies a profile (a saved one, or the snapshot taken before an automatic one). <paramref name="quiet"/> skips the
+    /// on-screen message, for the retries of an automatic profile whose apps have not opened audio yet.
+    /// </summary>
+    ProfileResult ApplyProfile(Profile profile, string? title = null, bool quiet = false)
+    {
         // Defaults first: the apps that follow them move as soon as they change.
         var systemChanged = ApplyDefault(profile.DefaultOutputId, EDataFlow.Render);
         systemChanged |= ApplyDefault(profile.DefaultInputId, EDataFlow.Capture);
@@ -1089,12 +1102,16 @@ internal sealed partial class WidgetWindow : Window
 
         Refresh();
 
-        var summary = (systemChanged ? L("padrão do Windows  ·  ") : "") + L("{0} app(s) ajustado(s)", done);
-        if (closed > 0)
-            summary += L("  ·  {0} fechado(s)", closed);
-        if (noAudio.Count > 0)
-            summary += L("  ·  sem áudio ainda: {0}", string.Join(", ", noAudio));
-        _osd.Flash(null, L("Perfil: {0}", profile.Name), summary, null);
+        if (!quiet)
+        {
+            var summary = (systemChanged ? L("padrão do Windows  ·  ") : "") + L("{0} app(s) ajustado(s)", done);
+            if (closed > 0)
+                summary += L("  ·  {0} fechado(s)", closed);
+            if (noAudio.Count > 0)
+                summary += L("  ·  sem áudio ainda: {0}", string.Join(", ", noAudio));
+            _osd.Flash(null, title ?? L("Perfil: {0}", profile.Name), summary, null);
+        }
+        return new ProfileResult(done, closed, noAudio, systemChanged);
     }
 
     /// <summary>Applies the wanted device unless the app already has it; an unchanged setting never counts as a failure.</summary>
@@ -1186,6 +1203,7 @@ internal sealed partial class WidgetWindow : Window
         if (profile.Hotkey != null)
             flyout.AddItem(L("Remover atalho"), () => SetProfileHotkey(index, null));
         flyout.AddItem(L("Excluir perfil"), () => DeleteProfile(index));
+        AddTriggerItems(flyout, profile, index);
 
         flyout.AddSeparator();
         flyout.AddLabel(L("O que este perfil faz"));
@@ -1222,6 +1240,15 @@ internal sealed partial class WidgetWindow : Window
             }
         }
 
+        foreach (var (balanceId, balanceKey, balanceName) in BalanceHotkeys())
+        {
+            if (balanceKey != null && !Hotkeys.TryRegister(balanceId, balanceKey))
+            {
+                Log.Error(new InvalidOperationException($"Hotkey {balanceKey} ({balanceName}) is taken by another program."));
+                _osd.Flash(null, balanceName, L("Atalho {0} indisponível: já usado por outro programa", balanceKey), null);
+            }
+        }
+
         for (var i = 0; i < _settings.Profiles.Count; i++)
         {
             var profile = _settings.Profiles[i];
@@ -1236,7 +1263,9 @@ internal sealed partial class WidgetWindow : Window
     void OnHotkey(int id)
     {
         Log.Trace($"WM_HOTKEY id={id}");
-        if (id > MicMuteHotkeyBase)
+        if (id > BalanceHotkeyBase)
+            OnBalanceHotkey(id - BalanceHotkeyBase);
+        else if (id > MicMuteHotkeyBase)
             ToggleMicMute();
         else if (id > MuteHotkeyBase)
             ToggleMute(id - MuteHotkeyBase - 1);
@@ -1412,17 +1441,7 @@ internal sealed partial class WidgetWindow : Window
         // Start from where the app plays now (pinned output, or the system default it follows), walk the full
         // list in order and stop at the first output the slot allows.
         var current = ReadPinned(pids, EDataFlow.Render) ?? defaultId;
-        var start = outputs.FindIndex(d => SameId(d.Id, current));
-        AudioDevice? target = null;
-        for (var step = 1; step <= outputs.Count; step++)
-        {
-            var candidate = outputs[(start + step) % outputs.Count];
-            if (Allowed(candidate))
-            {
-                target = candidate;
-                break;
-            }
-        }
+        var target = OutputCycle.Next(outputs, current, Allowed);
 
         Log.Trace($"cycle slot {slot + 1}: pids={pids.Count} current={NameOf(outputs, current)} target={target?.Name}");
         if (target == null || SameId(target.Id, current))
@@ -1483,6 +1502,11 @@ internal sealed partial class WidgetWindow : Window
         {
             if (ProfileHotkeyBase + i + 1 != exceptId && hotkey.SameAs(_settings.Profiles[i].Hotkey))
                 return L("perfil {0}", _settings.Profiles[i].Name);
+        }
+        foreach (var (balanceId, balanceKey, balanceName) in BalanceHotkeys())
+        {
+            if (balanceId != exceptId && hotkey.SameAs(balanceKey))
+                return balanceName.ToLowerInvariant();
         }
         return null;
     }

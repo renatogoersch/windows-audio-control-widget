@@ -164,6 +164,7 @@ internal static partial class Strings
         ["Não foi possível ajustar o volume"] = "Could not adjust the volume",
         ["Não foi possível alterar o mudo"] = "Could not change the mute",
         ["slot do Windows"] = "Windows slot",
+        ["slot {0}"] = "slot {0}",
         ["Aumentar volume geral"] = "Master volume up",
         ["Diminuir volume geral"] = "Master volume down",
         ["Mudo geral"] = "Master mute",
@@ -199,6 +200,43 @@ internal static partial class Strings
         ["Indicador de som nos slots"] = "Sound indicator on the slots",
 
         ["Usando o microfone agora"] = "Using the microphone now",
+
+        // commands from outside
+        ["Perfil não encontrado: {0}"] = "Profile not found: {0}",
+
+        // automatic profiles
+        ["Perfil automático: {0}"] = "Automatic profile: {0}",
+        ["Estado anterior restaurado"] = "Previous state restored",
+        ["Escolha o app que dispara este perfil"] = "Choose the app that triggers this profile",
+        ["Escolha o dispositivo que dispara este perfil"] = "Choose the device that triggers this profile",
+        ["Quando aplicar"] = "When to apply",
+        ["Ao abrir: {0}  ·  alterar…"] = "When it opens: {0}  ·  change…",
+        ["Aplicar ao abrir um app…"] = "Apply when an app opens…",
+        ["Ao conectar: {0}  ·  alterar…"] = "When it connects: {0}  ·  change…",
+        ["dispositivo ausente"] = "device not present",
+        ["Aplicar ao conectar um dispositivo…"] = "Apply when a device connects…",
+        ["Voltar ao estado anterior ao terminar"] = "Restore the previous state when it ends",
+        ["Remover gatilhos"] = "Remove triggers",
+
+        // game/chat balance
+        ["Equilíbrio jogo/chat"] = "Game/chat balance",
+        ["Equilíbrio jogo/chat…"] = "Game/chat balance…",
+        ["Equilíbrio: mais jogo"] = "Balance: more game",
+        ["Equilíbrio: mais chat"] = "Balance: more chat",
+        ["Equilíbrio: centralizar"] = "Balance: center",
+        ["Escolha os dois apps: botão direito no headset › Equilíbrio jogo/chat…"] = "Choose the two apps: right-click the headset › Game/chat balance…",
+        ["Nenhum dos dois apps está aberto"] = "Neither of the two apps is open",
+        ["{0} {1}  ·  {2} {3}"] = "{0} {1}  ·  {2} {3}",
+        ["Jogo"] = "Game",
+        ["Chat"] = "Chat",
+        ["Dois atalhos movem o volume entre o jogo e o chat"] = "Two shortcuts move the volume between the game and the chat",
+        ["Jogo: {0}  ·  alterar…"] = "Game: {0}  ·  change…",
+        ["Escolher o app do jogo…"] = "Choose the game app…",
+        ["Chat: {0}  ·  alterar…"] = "Chat: {0}  ·  change…",
+        ["Escolher o app do chat…"] = "Choose the chat app…",
+        ["Escolha o app do jogo"] = "Choose the game app",
+        ["Escolha o app do chat"] = "Choose the chat app",
+        ["Mais chat abaixa o jogo, mais jogo abaixa o chat; centralizar devolve os dois ao volume de antes."] = "More chat lowers the game, more game lowers the chat; center puts both back at their earlier volume.",
 
         // displays
         ["Mostrar o widget: {0}"] = "Show the widget: {0}",

@@ -13,6 +13,7 @@ internal static class Installer
 {
     const string Title = "SlotMixer";
     const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\SlotMixer";
+    const string UriKey = @"Software\Classes\" + Commands.UriScheme;
 
     public static string InstallDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "SlotMixer");
@@ -54,6 +55,7 @@ internal static class Installer
             File.Copy(Environment.ProcessPath!, InstalledExe, overwrite: true);
             CreateShortcut();
             WriteUninstallEntry();
+            RegisterUriScheme();
 
             // Someone who had "start with Windows" on keeps it, now pointing at the installed copy.
             if (Startup.IsEnabled)
@@ -109,6 +111,7 @@ internal static class Installer
             if (File.Exists(ShortcutPath))
                 File.Delete(ShortcutPath);
             Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, throwOnMissingSubKey: false);
+            Registry.CurrentUser.DeleteSubKeyTree(UriKey, throwOnMissingSubKey: false);
 
             if (wipeSettings && Directory.Exists(Settings.Folder))
                 Directory.Delete(Settings.Folder, recursive: true);
@@ -167,6 +170,16 @@ internal static class Installer
         link.WorkingDirectory = InstallDir;
         link.Description = L("SlotMixer: saída de áudio por app na barra de tarefas");
         link.Save();
+    }
+
+    /// <summary>Makes slotmixer:// links open this program, which hands them to the running widget (see <see cref="Commands"/>).</summary>
+    static void RegisterUriScheme()
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(UriKey);
+        key.SetValue("", "URL:SlotMixer");
+        key.SetValue("URL Protocol", "");
+        using var command = key.CreateSubKey(@"shell\open\command");
+        command.SetValue("", $"\"{InstalledExe}\" \"%1\"");
     }
 
     static void WriteUninstallEntry()

@@ -40,7 +40,6 @@ internal static class Updater
         .GetCustomAttributes<AssemblyMetadataAttribute>()
         .Any(a => a.Key == "SelfContained" && string.Equals(a.Value, "true", StringComparison.OrdinalIgnoreCase));
 
-    static string AssetName => IsSelfContained ? "SlotMixer-autonomo.zip" : "SlotMixer-requer-dotnet.zip";
 
     static HttpClient CreateClient()
     {
@@ -53,24 +52,34 @@ internal static class Updater
     /// <summary>The newest release when it is newer than this copy; null when this copy is up to date. Throws when there is no answer.</summary>
     public static async Task<UpdateInfo?> CheckAsync(CancellationToken cancel)
     {
-        using var stream = await Http.GetStreamAsync(FeedUrl, cancel);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancel);
+        var json = await Http.GetStringAsync(FeedUrl, cancel);
+        return Parse(json, Installer.CurrentVersion, IsSelfContained, FeedOverride != null);
+    }
+
+    /// <summary>
+    /// Reads the "latest release" answer of GitHub: the release when it is newer than <paramref name="current"/> and has the
+    /// zip of the right kind (from this project's own downloads, unless <paramref name="trustAnyUrl"/>), otherwise null.
+    /// </summary>
+    internal static UpdateInfo? Parse(string json, Version current, bool selfContained, bool trustAnyUrl)
+    {
+        using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
         var tag = root.GetProperty("tag_name").GetString() ?? "";
-        if (!TryParseTag(tag, out var version) || version <= Normalize(Installer.CurrentVersion))
+        if (!TryParseTag(tag, out var version) || version <= Normalize(current))
             return null;
 
         if (!root.TryGetProperty("assets", out var assets))
             return null;
 
+        var wanted = selfContained ? "SlotMixer-autonomo.zip" : "SlotMixer-requer-dotnet.zip";
         foreach (var asset in assets.EnumerateArray())
         {
-            if (asset.GetProperty("name").GetString() != AssetName)
+            if (asset.GetProperty("name").GetString() != wanted)
                 continue;
 
             var url = asset.GetProperty("browser_download_url").GetString() ?? "";
-            if (!IsTrusted(url))
+            if (!trustAnyUrl && !url.StartsWith($"https://github.com/{Repository}/releases/download/", StringComparison.OrdinalIgnoreCase))
                 return null;
 
             var size = asset.TryGetProperty("size", out var sizeElement) ? sizeElement.GetInt64() : 0;
@@ -78,7 +87,7 @@ internal static class Updater
             if (asset.TryGetProperty("digest", out var digest) && digest.GetString() is { } text && text.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
                 sha256 = text["sha256:".Length..];
 
-            return new UpdateInfo(version, tag, AssetName, url, size, sha256);
+            return new UpdateInfo(version, tag, wanted, url, size, sha256);
         }
         return null;
     }
@@ -165,10 +174,6 @@ internal static class Updater
             // A file still in use (an update that is starting) is simply left for the next run.
         }
     }
-
-    /// <summary>Only files from this project's own releases, unless a test feed was set on purpose.</summary>
-    static bool IsTrusted(string url) =>
-        FeedOverride != null || url.StartsWith($"https://github.com/{Repository}/releases/download/", StringComparison.OrdinalIgnoreCase);
 
     static bool TryParseTag(string tag, out Version version)
     {

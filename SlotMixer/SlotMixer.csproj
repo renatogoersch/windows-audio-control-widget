@@ -16,6 +16,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="SlotMixer.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Tells the updater which zip to fetch: the one with the .NET runtime inside or the small one. -->
     <AssemblyMetadata Include="SelfContained" Value="$(SelfContained)" />
   </ItemGroup>

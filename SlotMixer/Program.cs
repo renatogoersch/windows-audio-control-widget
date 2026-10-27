@@ -10,6 +10,18 @@ public static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // An order for the running widget (--cycle 2, slotmixer://mute/windows): hand it over and leave.
+        if (Commands.TryParse(args, out var command, out var commandError))
+        {
+            if (commandError != null)
+            {
+                Native.AttachConsole(-1);
+                Console.Error.WriteLine(commandError);
+                Environment.Exit(3);
+            }
+            Environment.Exit(Commands.Send(command));
+        }
+
         // Runs from Windows' "Installed apps" while the widget itself may still be open, so it comes before the single-instance check.
         if (args.Contains("--uninstall"))
         {
@@ -73,6 +85,8 @@ public static class Program
 
         var widget = new WidgetWindow(settings);
         widget.Show();
+
+        Commands.StartServer(received => widget.Dispatcher.BeginInvoke(new Action(() => widget.Run(received))));
 
         using var reveal = new EventWaitHandle(false, EventResetMode.AutoReset, RevealEventName);
         new Thread(() =>

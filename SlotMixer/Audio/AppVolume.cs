@@ -45,6 +45,28 @@ internal static class AppVolume
         return level;
     }
 
+    /// <summary>Sets the volume of every session of the app (1.0 = 100 %). Returns false when the app has no audio session.</summary>
+    public static bool Set(ICollection<uint> pids, float level)
+    {
+        var sessions = Collect(pids);
+        if (sessions.Count == 0)
+            return false;
+
+        var context = Guid.Empty;
+        foreach (var session in sessions)
+        {
+            try
+            {
+                session.Volume.SetMasterVolume(Math.Clamp(level, 0f, 1f), ref context);
+            }
+            catch (COMException)
+            {
+                // The session ended between enumeration and now.
+            }
+        }
+        return true;
+    }
+
     /// <summary>Flips mute for every session of the app. Returns the new state, or null when the app has no audio session.</summary>
     public static bool? ToggleMute(ICollection<uint> pids)
     {

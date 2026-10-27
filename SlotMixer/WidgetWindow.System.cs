@@ -197,17 +197,7 @@ internal sealed partial class WidgetWindow
             return;
         }
 
-        var start = outputs.FindIndex(d => SameId(d.Id, current));
-        AudioDevice? target = null;
-        for (var step = 1; step <= outputs.Count; step++)
-        {
-            var candidate = outputs[(start + step) % outputs.Count];
-            if (Allowed(candidate))
-            {
-                target = candidate;
-                break;
-            }
-        }
+        var target = OutputCycle.Next(outputs, current, Allowed);
 
         if (target == null || SameId(target.Id, current))
         {
