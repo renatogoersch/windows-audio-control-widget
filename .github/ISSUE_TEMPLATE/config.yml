@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Baixar a versão mais recente / Download the latest release
+    url: https://github.com/renatogoersch/windows-audio-control-widget/releases/latest
+    about: Os zips e as notas de cada versão. / The zips and the notes of each version.

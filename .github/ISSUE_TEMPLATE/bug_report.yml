@@ -1,0 +1,86 @@
+name: Problema / Bug report
+description: Algo não funciona como deveria / Something does not work as it should
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por avisar! Quanto mais completo o diagnóstico, mais rápido eu consigo reproduzir.
+        Thanks for reporting! The more complete the diagnostics, the faster I can reproduce it.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu? / What happened?
+      description: Descreva o problema. Se puder, anexe uma captura de tela da barra de tarefas. / Describe the problem; a screenshot of the taskbar helps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Como reproduzir / Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: O que você esperava? / What did you expect?
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Versão do SlotMixer / SlotMixer version
+      description: Botão direito no headset mostra a versão no topo do menu. / Right-click the headset icon; the version is at the top of the menu.
+      placeholder: "1.6.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Qual zip ou instalação? / Which zip or install?
+      options:
+        - SlotMixer-requer-dotnet.zip (leve / small)
+        - SlotMixer-autonomo.zip (autônomo / self-contained)
+        - winget
+        - Scoop
+        - Compilado do código / Built from source
+        - Não sei / Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Versão do Windows / Windows version
+      description: Aperte Win+R, digite `winver` e copie a linha "Versão" e a "Compilação do SO". / Press Win+R, type `winver`, copy the version and OS build.
+      placeholder: "Windows 11 25H2, build 26200.xxxx"
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnóstico / Diagnostics
+      description: |
+        Botão direito no ícone do headset no widget › **Copiar diagnóstico** (**Copy diagnostics**) e cole o resultado aqui.
+        Ele inclui as versões, os monitores e a escala, a posição da barra e o log de erros; não inclui senhas nem arquivos seus.
+        Right-click the headset icon on the widget › **Copy diagnostics**, then paste the result here.
+        It lists versions, monitors and scaling, the taskbar position and the error log; no passwords or personal files.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Mais alguma coisa? / Anything else?
+      description: Vários monitores, jogos em tela cheia, outros programas de áudio, etc. / Several monitors, fullscreen games, other audio tools, etc.

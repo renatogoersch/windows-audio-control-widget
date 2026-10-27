@@ -1,0 +1,19 @@
+# Template: tools/winget-manifest.ps1 fills the double-underscore tokens below from the GitHub Release.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+
+PackageIdentifier: RenatoGoersch.SlotMixer
+PackageVersion: __VERSION__
+InstallerLocale: en-US
+MinimumOSVersion: 10.0.19041.0
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+- RelativeFilePath: SlotMixer\SlotMixer.exe
+  PortableCommandAlias: slotmixer
+ReleaseDate: __RELEASE_DATE__
+Installers:
+- Architecture: x64
+  InstallerUrl: __INSTALLER_URL__
+  InstallerSha256: __INSTALLER_SHA256__
+ManifestType: installer
+ManifestVersion: 1.6.0

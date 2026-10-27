@@ -1,0 +1,38 @@
+{
+    "version": "1.6.1",
+    "description": "Windows Audio Control - Widget: taskbar widget that sets the output, microphone and volume of each app",
+    "homepage": "https://github.com/renatogoersch/windows-audio-control-widget",
+    "license": "MIT",
+    "notes": "The exe is not code-signed, so Windows SmartScreen may warn on the first run. Scoop updates it with 'scoop update slotmixer'; the built-in updater only announces new versions here.",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/renatogoersch/windows-audio-control-widget/releases/download/v1.6.1/SlotMixer-autonomo.zip",
+            "hash": "b806adc0f4f34da2b8f8ce9d1bd27e6599d5dac43b213e71e3fb1c4b4eefa890"
+        }
+    },
+    "extract_dir": "SlotMixer",
+    "bin": [
+        [
+            "SlotMixer.exe",
+            "slotmixer",
+            "--portable"
+        ]
+    ],
+    "shortcuts": [
+        [
+            "SlotMixer.exe",
+            "SlotMixer",
+            "--portable"
+        ]
+    ],
+    "checkver": {
+        "github": "https://github.com/renatogoersch/windows-audio-control-widget"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/renatogoersch/windows-audio-control-widget/releases/download/v$version/SlotMixer-autonomo.zip"
+            }
+        }
+    }
+}
