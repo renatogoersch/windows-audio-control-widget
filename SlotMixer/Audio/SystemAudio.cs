@@ -31,6 +31,65 @@ internal static class SystemAudio
 
     static bool SameDevice(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>The level meter of the default output (what is playing through it, all apps together); null when there is none.</summary>
+    public static IAudioMeterInformation? OpenMasterMeter()
+    {
+        try
+        {
+            var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+            enumerator.GetDefaultAudioEndpoint(EDataFlow.Render, ERole.Multimedia, out var device);
+            var iid = typeof(IAudioMeterInformation).GUID;
+            device.Activate(ref iid, ClsctxAll, IntPtr.Zero, out var meter);
+            return (IAudioMeterInformation)meter;
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Whether the default microphone is muted; null when there is none.</summary>
+    public static bool? GetMicMuted()
+    {
+        try
+        {
+            OpenEndpoint(EDataFlow.Capture, ERole.Console).GetMute(out var muted);
+            return muted;
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Flips the mute of the default microphone and returns the new state (null when there is none). The microphone that
+    /// calls use, when it is another device, follows, so that "muted" means muted for every app.
+    /// </summary>
+    public static bool? ToggleMicMute()
+    {
+        try
+        {
+            var main = OpenEndpoint(EDataFlow.Capture, ERole.Console);
+            main.GetMute(out var muted);
+            var context = Guid.Empty;
+            main.SetMute(!muted, ref context);
+            try
+            {
+                OpenEndpoint(EDataFlow.Capture, ERole.Communications).SetMute(!muted, ref context);
+            }
+            catch (COMException)
+            {
+                // No separate communications microphone.
+            }
+            return !muted;
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+    }
+
     public static MasterState? GetMaster()
     {
         try
@@ -83,10 +142,12 @@ internal static class SystemAudio
         }
     }
 
-    static IAudioEndpointVolume OpenMaster()
+    static IAudioEndpointVolume OpenMaster() => OpenEndpoint(EDataFlow.Render, ERole.Multimedia);
+
+    static IAudioEndpointVolume OpenEndpoint(EDataFlow flow, ERole role)
     {
         var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-        enumerator.GetDefaultAudioEndpoint(EDataFlow.Render, ERole.Multimedia, out var device);
+        enumerator.GetDefaultAudioEndpoint(flow, role, out var device);
         var iid = typeof(IAudioEndpointVolume).GUID;
         device.Activate(ref iid, ClsctxAll, IntPtr.Zero, out var endpoint);
         return (IAudioEndpointVolume)endpoint;

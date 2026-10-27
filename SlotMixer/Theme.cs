@@ -21,18 +21,20 @@ internal sealed class Theme
     };
 
     /// <summary>
-    /// Device colors, one per position in the device list. The dark set is pastel; the same hues would nearly vanish on
+    /// Device colors, one per position in the device list. Green is not among them: it is kept for the signals that say
+    /// something is live (the sound line, a microphone in use, the success flash), so that those never read as a device.
+    /// The dark set is pastel; the same hues would nearly vanish on
     /// the light surface, so the light set uses the 600/700 shades.
     /// </summary>
     static readonly Brush[] DarkPalette =
     {
-        Solid(0xFF60A5FA), Solid(0xFF34D399), Solid(0xFFFBBF24), Solid(0xFFF472B6),
+        Solid(0xFF60A5FA), Solid(0xFF94A3B8), Solid(0xFFFBBF24), Solid(0xFFF472B6),
         Solid(0xFFA78BFA), Solid(0xFFFB923C), Solid(0xFF22D3EE), Solid(0xFFF87171),
     };
 
     static readonly Brush[] LightPalette =
     {
-        Solid(0xFF2563EB), Solid(0xFF047857), Solid(0xFFA16207), Solid(0xFFDB2777),
+        Solid(0xFF2563EB), Solid(0xFF475569), Solid(0xFFA16207), Solid(0xFFDB2777),
         Solid(0xFF7C3AED), Solid(0xFFC2410C), Solid(0xFF0E7490), Solid(0xFFDC2626),
     };
 

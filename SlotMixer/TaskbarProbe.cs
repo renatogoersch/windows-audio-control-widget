@@ -13,7 +13,7 @@ internal static class TaskbarProbe
 {
     public sealed record Result(int? TrayLeft, int? IconsLeft, int? IconsRight, int IconCount, DateTime At);
 
-    static readonly TimeSpan MaxAge = TimeSpan.FromSeconds(3);
+    static readonly TimeSpan MaxAge = TimeSpan.FromSeconds(5);
     static readonly ConcurrentDictionary<IntPtr, Result> Cache = new();
     static readonly ConcurrentDictionary<IntPtr, byte> Running = new();
 

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace SlotMixer;
 
@@ -29,6 +30,11 @@ internal abstract class HoverBorder : Border
                 OnClicked();
         };
         MouseRightButtonUp += (_, _) => OnContextRequested();
+        MouseUp += (_, e) =>
+        {
+            if (e.ChangedButton == MouseButton.Middle)
+                OnMiddleClicked();
+        };
     }
 
     protected virtual void OnHoverChanged(bool hovered) { }
@@ -36,6 +42,8 @@ internal abstract class HoverBorder : Border
     protected virtual void OnClicked() { }
 
     protected virtual void OnContextRequested() { }
+
+    protected virtual void OnMiddleClicked() { }
 
     void UpdateBackground()
     {

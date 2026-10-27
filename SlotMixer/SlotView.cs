@@ -13,6 +13,7 @@ namespace SlotMixer;
 /// </summary>
 internal sealed class SlotView : HoverBorder
 {
+    const string GlyphMic = "\uE720";
     const string GlyphAdd = "";
     const string GlyphApp = "";
     const string GlyphCheck = "";
@@ -88,6 +89,40 @@ internal sealed class SlotView : HoverBorder
         VerticalAlignment = VerticalAlignment.Center,
     };
 
+    /// <summary>Thin line along the top edge that grows with how loud the app is playing right now.</summary>
+    readonly Border _activityBar = new()
+    {
+        Height = 2,
+        Width = 0,
+        CornerRadius = new CornerRadius(1),
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Top,
+        Margin = new Thickness(0, 0, 0, 0),
+        Visibility = Visibility.Collapsed,
+        IsHitTestVisible = false,
+        Background = Success,
+    };
+
+    float _activity;
+    int _activityStep;
+
+    /// <summary>Green dot at the top right while the app is recording from a microphone, like the privacy dot of phones and macOS.</summary>
+    readonly Border _micDot = new()
+    {
+        Width = 9,
+        Height = 9,
+        CornerRadius = new CornerRadius(4.5),
+        BorderThickness = new Thickness(1.5),
+        Margin = new Thickness(0, 1, 1, 0),
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Top,
+        Background = Success,
+        Visibility = Visibility.Collapsed,
+        IsHitTestVisible = false,
+    };
+
+    readonly TextBlock _tipMic = TipLine();
+
     readonly TextBlock _tipTitle = new();
     readonly TextBlock _tipInput = TipLine();
     readonly TextBlock _tipVolume = TipLine();
@@ -102,7 +137,7 @@ internal sealed class SlotView : HoverBorder
         ToolTipService.SetVerticalOffset(this, -6);
         ToolTipService.SetInitialShowDelay(this, 350);
         ToolTipService.SetShowDuration(this, 60000);
-        ToolTip = new ToolTip { Content = new StackPanel { Children = { _tipTitle, _tipInput, _tipVolume, _tipHotkey } } };
+        ToolTip = new ToolTip { Content = new StackPanel { Children = { _tipTitle, _tipInput, _tipMic, _tipVolume, _tipHotkey } } };
 
         _outputChip = NewChip(HorizontalAlignment.Right, out _outputGlyph);
         _inputChip = NewChip(HorizontalAlignment.Left, out _inputGlyph);
@@ -120,6 +155,8 @@ internal sealed class SlotView : HoverBorder
         grid.Children.Add(_outputChip);
         grid.Children.Add(_inputChip);
         grid.Children.Add(_mutedChip);
+        grid.Children.Add(_activityBar);
+        grid.Children.Add(_micDot);
         grid.Children.Add(_flash);
         grid.Children.Add(_badge);
         Child = grid;
@@ -142,6 +179,7 @@ internal sealed class SlotView : HoverBorder
     }
 
     public event Action<SlotView>? Clicked;
+    public event Action<SlotView>? MiddleClicked;
     public event Action<SlotView>? ContextRequested;
     public event Action<SlotView>? Entered;
     public event Action<SlotView, int>? Scrolled;
@@ -213,6 +251,33 @@ internal sealed class SlotView : HoverBorder
         return logo;
     }
 
+    /// <summary>
+    /// Shows how loud the app is playing (0..1). Rises at once and falls over a few readings, like a meter; null or
+    /// <paramref name="enabled"/> false hides the line.
+    /// </summary>
+    public void SetActivity(float? peak, bool enabled)
+    {
+        _activity = enabled && peak is { } value ? Math.Max(value, _activity * 0.7f) : 0;
+
+        // Five steps: a layered window is redrawn whole on every change, so a smooth bar would cost more than it is worth.
+        var step = _activity > 0.02f ? (int)Math.Ceiling(Math.Min(1f, _activity * 1.8f) * 5) : 0;
+        if (step == _activityStep)
+            return;
+
+        _activityStep = step;
+        _activityBar.Visibility = step > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _activityBar.Width = step * 5.6;
+    }
+
+    /// <summary>Marks that the app is using the microphone right now (a green dot and a line in the tooltip).</summary>
+    public void SetMicLive(bool live)
+    {
+        _micDot.BorderBrush = Theme.Current.Surface;
+        _micDot.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+        _tipMic.Text = L("Usando o microfone agora");
+        _tipMic.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     public void SetEmpty()
     {
         _logo.Visibility = Visibility.Collapsed;
@@ -228,6 +293,7 @@ internal sealed class SlotView : HoverBorder
         SetInput(null);
         SetVolume(null);
         SetMuted(false);
+        SetMicLive(false);
         SetHotkeys(null, null, null, null);
     }
 
@@ -251,6 +317,7 @@ internal sealed class SlotView : HoverBorder
             SetInput(null);
             SetVolume(null);
             SetMuted(false);
+            SetMicLive(false);
         }
     }
 
@@ -258,14 +325,14 @@ internal sealed class SlotView : HoverBorder
     /// The fixed Windows slot: the Windows logo, a gear at the left (system settings) and, at the right, the type and
     /// color of the current default output like any app slot shows for its own.
     /// </summary>
-    public void SetSystem(DeviceBadge? output, string tooltip)
+    public void SetSystem(DeviceBadge? output, string tooltip, bool micMuted = false)
     {
         _icon.Source = null;
         _icon.Visibility = Visibility.Collapsed;
         _glyph.Visibility = Visibility.Collapsed;
         _logo.Visibility = Visibility.Visible;
         ShowChip(_outputChip, _outputGlyph, output);
-        ShowChip(_inputChip, _inputGlyph, new DeviceBadge(GlyphGear, Theme.Current.SubText));
+        ShowChip(_inputChip, _inputGlyph, micMuted ? new DeviceBadge(GlyphMic, Theme.Current.Error) : new DeviceBadge(GlyphGear, Theme.Current.SubText));
         _tipTitle.Text = tooltip;
     }
 
@@ -316,7 +383,7 @@ internal sealed class SlotView : HoverBorder
 
         _tipVolume.Text = _muted
             ? (_percent is { } level ? L("Mudo  ·  volume {0}%", level) : L("Mudo"))
-            : L("Volume {0}%  ·  role o mouse para ajustar", _percent);
+            : L("Volume {0}%  ·  role o mouse para ajustar  ·  clique do meio: mudo", _percent);
         _tipVolume.Visibility = Visibility.Visible;
     }
 
@@ -361,6 +428,8 @@ internal sealed class SlotView : HoverBorder
         badge.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1400))));
         _badge.BeginAnimation(OpacityProperty, badge);
     }
+
+    protected override void OnMiddleClicked() => MiddleClicked?.Invoke(this);
 
     protected override void OnHoverChanged(bool hovered)
     {

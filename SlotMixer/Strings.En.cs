@@ -40,7 +40,7 @@ internal static partial class Strings
         ["Microfone: {0}"] = "Microphone: {0}",
         ["Mudo  ·  volume {0}%"] = "Muted  ·  volume {0}%",
         ["Mudo"] = "Muted",
-        ["Volume {0}%  ·  role o mouse para ajustar"] = "Volume {0}%  ·  scroll the mouse wheel to adjust",
+        ["Volume {0}%  ·  role o mouse para ajustar  ·  clique do meio: mudo"] = "Volume {0}%  ·  scroll the mouse wheel to adjust  ·  middle-click: mute",
         ["Alternar saída: {0}"] = "Switch output: {0}",
         ["Volume +: {0}   ·   Volume −: {1}"] = "Volume +: {0}   ·   Volume −: {1}",
         ["Mudo: {0}"] = "Mute: {0}",
@@ -190,6 +190,15 @@ internal static partial class Strings
         ["Versão {0}{1}"] = "Version {0}{1}",
         ["Atualizações"] = "Updates",
         ["Suporte"] = "Support",
+
+        // microphone mute and sound indicator
+        ["Mudo do microfone"] = "Microphone mute",
+        ["Nenhum microfone padrão"] = "No default microphone",
+        ["Microfone mudo"] = "Microphone muted",
+        ["Microfone ativado"] = "Microphone on",
+        ["Indicador de som nos slots"] = "Sound indicator on the slots",
+
+        ["Usando o microfone agora"] = "Using the microphone now",
 
         // displays
         ["Mostrar o widget: {0}"] = "Show the widget: {0}",

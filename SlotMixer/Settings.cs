@@ -6,7 +6,8 @@ using SlotMixer.Audio;
 namespace SlotMixer;
 
 /// <summary>What a slot's shortcuts do.</summary>
-internal enum SlotAction { CycleOutput, VolumeUp, VolumeDown, ToggleMute }
+/// <summary>ToggleMicMute only exists on the Windows slot: it mutes the default microphone.</summary>
+internal enum SlotAction { CycleOutput, VolumeUp, VolumeDown, ToggleMute, ToggleMicMute }
 
 internal sealed class SlotConfig
 {
@@ -24,11 +25,15 @@ internal sealed class SlotConfig
     /// <summary>Global shortcut that mutes and unmutes this slot's app.</summary>
     public Hotkey? MuteHotkey { get; set; }
 
+    /// <summary>Windows slot only: mutes and unmutes the default microphone.</summary>
+    public Hotkey? MicMuteHotkey { get; set; }
+
     public Hotkey? HotkeyFor(SlotAction action) => action switch
     {
         SlotAction.VolumeUp => VolumeUpHotkey,
         SlotAction.VolumeDown => VolumeDownHotkey,
         SlotAction.ToggleMute => MuteHotkey,
+        SlotAction.ToggleMicMute => MicMuteHotkey,
         _ => Hotkey,
     };
 
@@ -44,6 +49,9 @@ internal sealed class SlotConfig
                 break;
             case SlotAction.ToggleMute:
                 MuteHotkey = hotkey;
+                break;
+            case SlotAction.ToggleMicMute:
+                MicMuteHotkey = hotkey;
                 break;
             default:
                 Hotkey = hotkey;
@@ -100,6 +108,9 @@ internal sealed class Settings
     /// slides along the taskbar, so there is no vertical part.
     /// </summary>
     public double OffsetFromTray { get; set; }
+
+    /// <summary>Whether a slot shows a thin line while its app is playing sound.</summary>
+    public bool ShowActivity { get; set; } = true;
 
     /// <summary>"primary" puts the widget on the main taskbar only; "all" also on the taskbar of every other display.</summary>
     public string ShowOn { get; set; } = "primary";

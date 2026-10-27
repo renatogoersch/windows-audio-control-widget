@@ -144,3 +144,13 @@ internal interface IAudioEndpointVolume
     void SetMute([MarshalAs(UnmanagedType.Bool)] bool mute, ref Guid eventContext);
     void GetMute([MarshalAs(UnmanagedType.Bool)] out bool mute);
 }
+
+/// <summary>Peak level of a session, what the little meter in the Windows volume mixer shows.</summary>
+[ComImport, Guid("C02216F6-8C67-4B5B-9D00-D008E73E0064"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioMeterInformation
+{
+    [PreserveSig] int GetPeakValue(out float peak);
+    [PreserveSig] int GetMeteringChannelCount(out uint count);
+    [PreserveSig] int GetChannelsPeakValues(uint count, [Out, MarshalAs(UnmanagedType.LPArray)] float[] peaks);
+    [PreserveSig] int QueryHardwareSupport(out uint mask);
+}

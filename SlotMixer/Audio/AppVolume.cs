@@ -71,6 +71,19 @@ internal static class AppVolume
         return target;
     }
 
+    /// <summary>The processes that are capturing from a microphone right now (an active session on a recording device).</summary>
+    public static HashSet<uint> ReadCapturing()
+    {
+        var capturing = new HashSet<uint>();
+        Endpoints.ForEachSession((pid, session) =>
+        {
+            session.GetState(out var state);
+            if (state == 1)
+                capturing.Add(pid);
+        }, EDataFlow.Capture);
+        return capturing;
+    }
+
     /// <summary>One pass over every session on the system: the state of each process that has audio.</summary>
     public static Dictionary<uint, AppAudioState> ReadAll()
     {
@@ -87,6 +100,49 @@ internal static class AppVolume
                 result[pid] = new AppAudioState(level, muted, active);
         });
         return result;
+    }
+
+    /// <summary>
+    /// The level meters of every session of these processes. Finding them walks every audio device, so it is done once in
+    /// a while; <see cref="Peak"/> then reads the held meters, which costs next to nothing.
+    /// </summary>
+    public static List<IAudioMeterInformation> OpenMeters(ICollection<uint> pids)
+    {
+        var meters = new List<IAudioMeterInformation>();
+        Endpoints.ForEachSession((pid, session) =>
+        {
+            if (pids.Contains(pid) && session is IAudioMeterInformation meter)
+                meters.Add(meter);
+        });
+        return meters;
+    }
+
+    /// <summary>How loud the loudest of these meters is right now (0..1); null when there are none. A meter whose session ended is dropped.</summary>
+    public static float? Peak(List<IAudioMeterInformation> meters)
+    {
+        float? loudest = null;
+        for (var i = meters.Count - 1; i >= 0; i--)
+        {
+            int result;
+            float peak;
+            try
+            {
+                result = meters[i].GetPeakValue(out peak);
+            }
+            catch (COMException)
+            {
+                result = -1;
+                peak = 0;
+            }
+
+            if (result != 0)
+            {
+                meters.RemoveAt(i);
+                continue;
+            }
+            loudest = Math.Max(loudest ?? 0, peak);
+        }
+        return loudest;
     }
 
     static List<AppSession> Collect(ICollection<uint> pids)

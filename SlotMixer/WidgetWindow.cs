@@ -36,6 +36,7 @@ internal sealed partial class WidgetWindow : Window
     const int VolumeUpHotkeyBase = 1000;
     const int VolumeDownHotkeyBase = 2000;
     const int MuteHotkeyBase = 3000;
+    const int MicMuteHotkeyBase = 4000;
 
     static readonly SlotAction[] SlotActions =
         { SlotAction.CycleOutput, SlotAction.VolumeUp, SlotAction.VolumeDown, SlotAction.ToggleMute };
@@ -47,6 +48,9 @@ internal sealed partial class WidgetWindow : Window
         public List<uint> Pids { get; set; } = new();
         public string? DeviceId { get; set; }
         public string? InputId { get; set; }
+
+        /// <summary>Level meters of the app's audio sessions, found at each refresh and read many times a second.</summary>
+        public List<IAudioMeterInformation> Meters { get; set; } = new();
     }
 
     readonly Settings _settings;
@@ -141,6 +145,7 @@ internal sealed partial class WidgetWindow : Window
         _box.Child = _panel;
         Content = _box;
         InitMove();
+        InitActivity();
 
         _timer.Tick += (_, _) =>
         {
@@ -347,6 +352,7 @@ internal sealed partial class WidgetWindow : Window
             view.ContextRequested += ShowContext;
             view.Entered += ShowVolume;
             view.Scrolled += OnSlotScrolled;
+            view.MiddleClicked += slotView => ToggleMute(slotView.Index);
             if (_tipStyle != null)
                 view.ApplyTipStyle(_tipStyle);
             _views.Add(view);
@@ -440,9 +446,11 @@ internal sealed partial class WidgetWindow : Window
 
         // One pass over every audio session gives the mute state of all slots at once.
         var audio = new Dictionary<uint, AppAudioState>();
+        var capturing = new HashSet<uint>();
         try
         {
             audio = AppVolume.ReadAll();
+            capturing = AppVolume.ReadCapturing();
         }
         catch (Exception ex)
         {
@@ -458,6 +466,7 @@ internal sealed partial class WidgetWindow : Window
             if (config == null)
             {
                 runtime.Pids = new List<uint>();
+                runtime.Meters = new List<IAudioMeterInformation>();
                 runtime.DeviceId = null;
                 runtime.InputId = null;
                 view.SetEmpty();
@@ -466,6 +475,7 @@ internal sealed partial class WidgetWindow : Window
 
             var icon = Icons.Get(config.ExePath);
             runtime.Pids = Apps.FindPids(config.ExePath);
+            runtime.Meters = _settings.ShowActivity && runtime.Pids.Count > 0 ? AppVolume.OpenMeters(runtime.Pids) : new List<IAudioMeterInformation>();
             if (runtime.Pids.Count == 0)
             {
                 runtime.DeviceId = null;
@@ -492,6 +502,7 @@ internal sealed partial class WidgetWindow : Window
                 $"{config.Name} → {outputName}{suffix}");
             view.SetInput(runtime.InputId == null ? null : NameOf(_inputs, runtime.InputId) ?? L("dispositivo desconhecido"));
             view.SetMuted(runtime.Pids.Any(pid => audio.TryGetValue(pid, out var state) && state.Muted));
+            view.SetMicLive(runtime.Pids.Any(capturing.Contains));
             ShowHotkeys(view, config);
         }
 
@@ -847,6 +858,7 @@ internal sealed partial class WidgetWindow : Window
         var flyout = new Flyout();
         flyout.AddHeader(null, L("Ajuda e preferências"), L("Versão {0}{1}", Installer.CurrentVersion.ToString(3), Updater.IsSelfContained ? L(" (autônoma)") : ""));
         flyout.AddItem(L("Idioma: {0}", LanguageLabel()), CycleLanguage);
+        flyout.AddItem(L("Indicador de som nos slots"), () => { _settings.ShowActivity = !_settings.ShowActivity; _settings.Save(); }, isChecked: _settings.ShowActivity);
         flyout.AddSeparator();
         flyout.AddLabel(L("Atualizações"));
         AddUpdateSettings(flyout);
@@ -1196,7 +1208,7 @@ internal sealed partial class WidgetWindow : Window
 
         foreach (var (i, config) in HotkeyOwners())
         {
-            foreach (var action in SlotActions)
+            foreach (var action in ActionsFor(i))
             {
                 if (config.HotkeyFor(action) is not { } hotkey)
                     continue;
@@ -1224,7 +1236,9 @@ internal sealed partial class WidgetWindow : Window
     void OnHotkey(int id)
     {
         Log.Trace($"WM_HOTKEY id={id}");
-        if (id > MuteHotkeyBase)
+        if (id > MicMuteHotkeyBase)
+            ToggleMicMute();
+        else if (id > MuteHotkeyBase)
             ToggleMute(id - MuteHotkeyBase - 1);
         else if (id > VolumeDownHotkeyBase)
             ChangeVolume(id - VolumeDownHotkeyBase - 1, -VolumeStep);
@@ -1241,6 +1255,7 @@ internal sealed partial class WidgetWindow : Window
         SlotAction.VolumeUp => VolumeUpHotkeyBase,
         SlotAction.VolumeDown => VolumeDownHotkeyBase,
         SlotAction.ToggleMute => MuteHotkeyBase,
+        SlotAction.ToggleMicMute => MicMuteHotkeyBase,
         _ => 0,
     };
 
@@ -1249,6 +1264,7 @@ internal sealed partial class WidgetWindow : Window
         SlotAction.VolumeUp => L("Aumentar volume"),
         SlotAction.VolumeDown => L("Diminuir volume"),
         SlotAction.ToggleMute => L("Mudo"),
+        SlotAction.ToggleMicMute => L("Mudo do microfone"),
         _ => L("Alternar saída"),
     };
 
@@ -1457,7 +1473,7 @@ internal sealed partial class WidgetWindow : Window
     {
         foreach (var (i, config) in HotkeyOwners())
         {
-            foreach (var action in SlotActions)
+            foreach (var action in ActionsFor(i))
             {
                 if (HotkeyId(action, i) != exceptId && hotkey.SameAs(config.HotkeyFor(action)))
                     return $"{SlotLabel(i)} ({ActionTitle(action, i).ToLowerInvariant()})";

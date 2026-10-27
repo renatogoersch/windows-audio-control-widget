@@ -32,6 +32,9 @@ internal sealed partial class WidgetWindow
         VerticalAlignment = VerticalAlignment.Center,
     };
 
+    /// <summary>Level meter of the default output, found at each refresh.</summary>
+    IAudioMeterInformation? _masterMeter;
+
     void InitSystemSlot()
     {
         _system.Margin = new Thickness(SlotGap, 0, 0, 0);
@@ -43,6 +46,7 @@ internal sealed partial class WidgetWindow
         _system.ContextRequested += _ => ShowSystemContext();
         _system.Entered += _ => ShowSystemVolume();
         _system.Scrolled += (_, wheelDelta) => OnSystemScrolled(wheelDelta);
+        _system.MiddleClicked += _ => ToggleMasterMute();
 
         _panel.Children.Add(_system);
         _panel.Children.Add(_divider);
@@ -55,7 +59,10 @@ internal sealed partial class WidgetWindow
         var outputName = NameOf(_outputs, _defaultOutputId) ?? L("dispositivo desconhecido");
 
         _divider.Background = Theme.Current.Divider;
-        _system.SetSystem(BadgeFor(_defaultOutputId, input: false), $"{SystemTitle} → {outputName}");
+        _masterMeter = _settings.ShowActivity ? SystemAudio.OpenMasterMeter() : null;
+        var micMuted = SystemAudio.GetMicMuted() == true;
+        _system.SetSystem(BadgeFor(_defaultOutputId, input: false),
+            $"{SystemTitle} → {outputName}" + (micMuted ? "\n" + L("Microfone mudo") : ""), micMuted);
         _system.SetInput(NameOf(_inputs, _defaultInputId));
 
         var master = SystemAudio.GetMaster();
@@ -107,7 +114,7 @@ internal sealed partial class WidgetWindow
         var flyout = new Flyout();
         flyout.AddHeader(null, SystemTitle, L("Atalhos para a saída padrão e o volume geral"));
         flyout.AddLabel(L("Atalhos"));
-        foreach (var action in SlotActions)
+        foreach (var action in ActionsFor(SystemSlotIndex))
         {
             flyout.AddItem(ActionTitle(action, SystemSlotIndex), () => ShowSlotHotkeyCapture(SystemSlotIndex, action),
                 trailing: config.HotkeyFor(action)?.ToString() ?? L("definir…"));
@@ -254,6 +261,22 @@ internal sealed partial class WidgetWindow
         _osd.Flash(null, SystemTitle, muted ? L("Mudo") : L("Som ativado"), new DeviceBadge(muted ? "" : "", Theme.Current.Text));
     }
 
+    /// <summary>The shortcut (or the menu) that mutes the default microphone: the same switch as the mute key of a headset.</summary>
+    void ToggleMicMute()
+    {
+        if (SystemAudio.ToggleMicMute() is not { } muted)
+        {
+            _system.Flash(false);
+            _osd.Flash(null, SystemTitle, L("Nenhum microfone padrão"), null);
+            return;
+        }
+
+        RefreshSystem();
+        _system.Flash(true);
+        _osd.Flash(null, SystemTitle, muted ? L("Microfone mudo") : L("Microfone ativado"),
+            new DeviceBadge("\uE720", muted ? Theme.Current.Error : Theme.Current.Text));
+    }
+
     void ShowSystemVolume()
     {
         var master = SystemAudio.GetMaster();
@@ -318,6 +341,12 @@ internal sealed partial class WidgetWindow
         : slot >= 0 && slot < _views.Count ? _views[slot]
         : null;
 
+    /// <summary>The shortcuts a slot can have: the Windows slot also mutes the microphone.</summary>
+    static SlotAction[] ActionsFor(int slot) => slot == SystemSlotIndex ? SystemActions : SlotActions;
+
+    static readonly SlotAction[] SystemActions =
+        { SlotAction.CycleOutput, SlotAction.VolumeUp, SlotAction.VolumeDown, SlotAction.ToggleMute, SlotAction.ToggleMicMute };
+
     static string SlotLabel(int slot) => slot == SystemSlotIndex ? L("slot do Windows") : L("slot {0}", slot + 1);
 
     static string ActionTitle(SlotAction action, int slot) => slot != SystemSlotIndex ? ActionTitle(action) : action switch
@@ -325,6 +354,7 @@ internal sealed partial class WidgetWindow
         SlotAction.VolumeUp => L("Aumentar volume geral"),
         SlotAction.VolumeDown => L("Diminuir volume geral"),
         SlotAction.ToggleMute => L("Mudo geral"),
+        SlotAction.ToggleMicMute => L("Mudo do microfone"),
         _ => L("Alternar saída padrão"),
     };
 }

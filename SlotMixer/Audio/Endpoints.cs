@@ -82,11 +82,11 @@ internal static class Endpoints
         return result;
     }
 
-    /// <summary>Visits every per-app audio session on every active playback device with the owning process id.</summary>
-    internal static void ForEachSession(Action<uint, IAudioSessionControl2> visit)
+    /// <summary>Visits every per-app audio session on every active playback (or, with <paramref name="flow"/>, recording) device with the owning process id.</summary>
+    internal static void ForEachSession(Action<uint, IAudioSessionControl2> visit, EDataFlow flow = EDataFlow.Render)
     {
         var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-        enumerator.EnumAudioEndpoints(EDataFlow.Render, DeviceStateActive, out var devices);
+        enumerator.EnumAudioEndpoints(flow, DeviceStateActive, out var devices);
         devices.GetCount(out var deviceCount);
 
         for (uint d = 0; d < deviceCount; d++)
