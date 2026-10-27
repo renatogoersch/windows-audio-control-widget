@@ -36,7 +36,7 @@ internal sealed partial class WidgetWindow
 
         for (var i = 0; i < _views.Count && i < _runtime.Count; i++)
         {
-            _views[i].SetActivity(AppVolume.Peak(_runtime[i].Meters), enabled: true);
+            _views[i].SetActivity(AppLevels.Peak(_runtime[i].ActivePids), enabled: true);
             _views[i].SetInputLevel(AppVolume.Peak(_runtime[i].InputMeters), enabled: true);
         }
 

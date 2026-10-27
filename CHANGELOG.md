@@ -6,10 +6,12 @@ Cada versão ganha uma seção `## X.Y.Z`; o texto dela vira o corpo do Release 
 
 **Português**
 
+- **Correção: a linha verde de som aparecia em todos os apps que dividiam a mesma saída**, e não só no que estava tocando (o medidor de sessão do Windows devolve o nível do dispositivo inteiro nesse caso). Agora cada app é medido sozinho, pela captura loopback por processo do Windows: um app calado com sessão ativa (o Discord, por exemplo) não mostra a linha.
 - **Anel verde ao redor do slot** quando entra som pelo microfone daquele app (alguém falando). O círculo no canto continua dizendo que o app está com o microfone aberto; o anel diz que há som entrando. A sensibilidade é a configuração `InputThreshold` (padrão 0,05).
 
 **English**
 
+- **Fix: the green sound line showed on every app that shared the same output**, not only on the one playing (Windows' session meter returns the whole device's level in that case). Each app is now measured on its own, through Windows' per-process loopback capture: a silent app with an active session (Discord, say) does not show the line.
 - **Green ring around the slot** when sound comes in through that app's microphone (somebody talking). The corner circle still says the app has the microphone open; the ring says sound is coming in. The sensitivity is the `InputThreshold` setting (default 0.05).
 ## 1.7.0
 

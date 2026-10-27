@@ -50,8 +50,11 @@ internal sealed partial class WidgetWindow : Window
         public string? DeviceId { get; set; }
         public string? InputId { get; set; }
 
-        /// <summary>Level meters of the app's audio sessions, found at each refresh and read many times a second.</summary>
-        public List<IAudioMeterInformation> Meters { get; set; } = new();
+        /// <summary>
+        /// The processes of the app that have an audio session playing right now; those are the ones listened to for the
+        /// sound line (see <see cref="AppLevels"/>).
+        /// </summary>
+        public List<uint> ActivePids { get; set; } = new();
 
         /// <summary>Level meters of the app's recording sessions: how loud the sound entering through its microphone is.</summary>
         public List<IAudioMeterInformation> InputMeters { get; set; } = new();
@@ -474,7 +477,7 @@ internal sealed partial class WidgetWindow : Window
             if (config == null)
             {
                 runtime.Pids = new List<uint>();
-                runtime.Meters = new List<IAudioMeterInformation>();
+                runtime.ActivePids = new List<uint>();
                 runtime.InputMeters = new List<IAudioMeterInformation>();
                 runtime.DeviceId = null;
                 runtime.InputId = null;
@@ -484,7 +487,9 @@ internal sealed partial class WidgetWindow : Window
 
             var icon = Icons.Get(config.ExePath);
             runtime.Pids = Apps.FindPids(config.ExePath);
-            runtime.Meters = _settings.ShowActivity && runtime.Pids.Count > 0 ? AppVolume.OpenMeters(runtime.Pids) : new List<IAudioMeterInformation>();
+            runtime.ActivePids = _settings.ShowActivity
+                ? runtime.Pids.Where(pid => audio.TryGetValue(pid, out var session) && session.Active).ToList()
+                : new List<uint>();
 
             // Only apps that have a recording session open need the second walk over the devices.
             runtime.InputMeters = _settings.ShowActivity && runtime.Pids.Any(capturing.Contains)
@@ -521,6 +526,10 @@ internal sealed partial class WidgetWindow : Window
         }
 
         RefreshSystem();
+
+        // One strip decides whom to listen to, for all of them.
+        if (_isPrimary)
+            AppLevels.Want(_settings.ShowActivity ? _runtime.SelectMany(r => r.ActivePids) : Enumerable.Empty<uint>());
     }
 
     /// <summary>

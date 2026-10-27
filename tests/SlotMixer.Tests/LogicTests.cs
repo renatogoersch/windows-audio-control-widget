@@ -126,6 +126,16 @@ public class OutputCycleTests
     }
 }
 
+public class AppLevelsTests
+{
+    [Fact]
+    public void Nothing_is_known_about_a_process_that_is_not_being_listened_to()
+    {
+        Assert.Null(AppLevels.Peak(Array.Empty<uint>()));
+        Assert.Null(AppLevels.Peak(new uint[] { 4_000_000_001 }));
+    }
+}
+
 public class BalanceTests
 {
     [Theory]
