@@ -24,7 +24,10 @@ internal sealed partial class WidgetWindow
             if (_activityShown)
             {
                 foreach (var view in _views)
+                {
                     view.SetActivity(null, enabled: false);
+                    view.SetInputLevel(null, enabled: false);
+                }
                 _system.SetActivity(null, enabled: false);
                 _activityShown = false;
             }
@@ -32,7 +35,10 @@ internal sealed partial class WidgetWindow
         }
 
         for (var i = 0; i < _views.Count && i < _runtime.Count; i++)
+        {
             _views[i].SetActivity(AppVolume.Peak(_runtime[i].Meters), enabled: true);
+            _views[i].SetInputLevel(AppVolume.Peak(_runtime[i].InputMeters), enabled: true);
+        }
 
         _system.SetActivity(_masterMeter == null ? null : AppVolume.Peak(new List<IAudioMeterInformation> { _masterMeter }), enabled: true);
         _activityShown = true;

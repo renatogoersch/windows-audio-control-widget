@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using SlotMixer;
 using Xunit;
 
@@ -100,6 +100,7 @@ public class SettingsTests
         Assert.Equal("primary", old.ShowOn);
         Assert.Equal("auto", old.Language);
         Assert.Equal(0, old.OffsetFromTray);
+        Assert.Equal(0.05, old.InputThreshold);
         Assert.NotNull(old.Balance);
         Assert.False(old.Balance.IsReady);
     }

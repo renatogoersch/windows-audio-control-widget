@@ -52,6 +52,9 @@ internal sealed partial class WidgetWindow : Window
 
         /// <summary>Level meters of the app's audio sessions, found at each refresh and read many times a second.</summary>
         public List<IAudioMeterInformation> Meters { get; set; } = new();
+
+        /// <summary>Level meters of the app's recording sessions: how loud the sound entering through its microphone is.</summary>
+        public List<IAudioMeterInformation> InputMeters { get; set; } = new();
     }
 
     readonly Settings _settings;
@@ -105,6 +108,7 @@ internal sealed partial class WidgetWindow : Window
     public WidgetWindow(Settings settings, IntPtr taskbarHwnd = default)
     {
         _settings = settings;
+        SlotView.InputThreshold = (float)Math.Clamp(settings.InputThreshold, 0.0005, 0.9);
         _taskbarHwnd = taskbarHwnd;
         _isPrimary = taskbarHwnd == IntPtr.Zero;
         All.Add(this);
@@ -471,6 +475,7 @@ internal sealed partial class WidgetWindow : Window
             {
                 runtime.Pids = new List<uint>();
                 runtime.Meters = new List<IAudioMeterInformation>();
+                runtime.InputMeters = new List<IAudioMeterInformation>();
                 runtime.DeviceId = null;
                 runtime.InputId = null;
                 view.SetEmpty();
@@ -480,6 +485,11 @@ internal sealed partial class WidgetWindow : Window
             var icon = Icons.Get(config.ExePath);
             runtime.Pids = Apps.FindPids(config.ExePath);
             runtime.Meters = _settings.ShowActivity && runtime.Pids.Count > 0 ? AppVolume.OpenMeters(runtime.Pids) : new List<IAudioMeterInformation>();
+
+            // Only apps that have a recording session open need the second walk over the devices.
+            runtime.InputMeters = _settings.ShowActivity && runtime.Pids.Any(capturing.Contains)
+                ? AppVolume.OpenMeters(runtime.Pids, EDataFlow.Capture)
+                : new List<IAudioMeterInformation>();
             if (runtime.Pids.Count == 0)
             {
                 runtime.DeviceId = null;

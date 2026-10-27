@@ -139,6 +139,12 @@ internal sealed class Settings
 
     public BalanceConfig Balance { get; set; } = new();
 
+    /// <summary>
+    /// How loud (peak, 0..1) the sound entering through a microphone must be to light the ring around its slot. Raise it if
+    /// a noisy microphone keeps the ring on; lower it if talking quietly does not light it.
+    /// </summary>
+    public double InputThreshold { get; set; } = 0.05;
+
     /// <summary>Whether a slot shows a thin line while its app is playing sound.</summary>
     public bool ShowActivity { get; set; } = true;
 

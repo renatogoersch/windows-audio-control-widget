@@ -128,14 +128,14 @@ internal static class AppVolume
     /// The level meters of every session of these processes. Finding them walks every audio device, so it is done once in
     /// a while; <see cref="Peak"/> then reads the held meters, which costs next to nothing.
     /// </summary>
-    public static List<IAudioMeterInformation> OpenMeters(ICollection<uint> pids)
+    public static List<IAudioMeterInformation> OpenMeters(ICollection<uint> pids, EDataFlow flow = EDataFlow.Render)
     {
         var meters = new List<IAudioMeterInformation>();
         Endpoints.ForEachSession((pid, session) =>
         {
             if (pids.Contains(pid) && session is IAudioMeterInformation meter)
                 meters.Add(meter);
-        });
+        }, flow);
         return meters;
     }
 

@@ -2,6 +2,15 @@
 
 Cada versão ganha uma seção `## X.Y.Z`; o texto dela vira o corpo do Release no GitHub (veja `tools/release-notes.ps1`).
 
+## 1.7.1
+
+**Português**
+
+- **Anel verde ao redor do slot** quando entra som pelo microfone daquele app (alguém falando). O círculo no canto continua dizendo que o app está com o microfone aberto; o anel diz que há som entrando. A sensibilidade é a configuração `InputThreshold` (padrão 0,05).
+
+**English**
+
+- **Green ring around the slot** when sound comes in through that app's microphone (somebody talking). The corner circle still says the app has the microphone open; the ring says sound is coming in. The sensitivity is the `InputThreshold` setting (default 0.05).
 ## 1.7.0
 
 **Português**

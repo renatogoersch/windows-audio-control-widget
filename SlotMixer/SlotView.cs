@@ -121,6 +121,28 @@ internal sealed class SlotView : HoverBorder
         IsHitTestVisible = false,
     };
 
+    /// <summary>
+    /// Green ring around the whole slot while sound is actually coming in through the microphone (somebody is talking),
+    /// as opposed to the dot, which only says the app has the microphone open.
+    /// </summary>
+    readonly Border _inputRing = new()
+    {
+        BorderThickness = new Thickness(2),
+        BorderBrush = Success,
+        CornerRadius = new CornerRadius(7),
+        Visibility = Visibility.Collapsed,
+        IsHitTestVisible = false,
+    };
+
+    /// <summary>
+    /// Below this peak (0..1) the microphone is just room noise (measured: a quiet room reads about 0.006, rarely above
+    /// 0.05). Comes from the settings, for microphones that are noisier or quieter than that.
+    /// </summary>
+    public static float InputThreshold { get; set; } = 0.05f;
+
+    float _inputLevel;
+    int _inputStep;
+
     readonly TextBlock _tipMic = TipLine();
 
     readonly TextBlock _tipTitle = new();
@@ -157,6 +179,7 @@ internal sealed class SlotView : HoverBorder
         grid.Children.Add(_mutedChip);
         grid.Children.Add(_activityBar);
         grid.Children.Add(_micDot);
+        grid.Children.Add(_inputRing);
         grid.Children.Add(_flash);
         grid.Children.Add(_badge);
         Child = grid;
@@ -267,6 +290,23 @@ internal sealed class SlotView : HoverBorder
         _activityStep = step;
         _activityBar.Visibility = step > 0 ? Visibility.Visible : Visibility.Collapsed;
         _activityBar.Width = step * 5.6;
+    }
+
+    /// <summary>
+    /// Lights the ring while the microphone of this app is picking up sound (peak 0..1; null or <paramref name="enabled"/>
+    /// false hides it). Three brightness steps, like the sound line, so that the layered window is not redrawn needlessly;
+    /// it fades out over a few readings instead of blinking between words.
+    /// </summary>
+    public void SetInputLevel(float? peak, bool enabled)
+    {
+        _inputLevel = enabled && peak is { } value ? Math.Max(value, _inputLevel * 0.8f) : 0;
+        var step = _inputLevel <= InputThreshold ? 0 : _inputLevel > 0.25f ? 3 : _inputLevel > 0.1f ? 2 : 1;
+        if (step == _inputStep)
+            return;
+
+        _inputStep = step;
+        _inputRing.Visibility = step > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _inputRing.Opacity = step switch { 1 => 0.55, 2 => 0.8, _ => 1.0 };
     }
 
     /// <summary>Marks that the app is using the microphone right now (a green dot and a line in the tooltip).</summary>

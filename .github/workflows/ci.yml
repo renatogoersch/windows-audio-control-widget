@@ -22,7 +22,7 @@ jobs:
       - name: Build
         run: dotnet build SlotMixer/SlotMixer.csproj -c Release
 
-      - name: Test (skipped until tests/SlotMixer.Tests exists)
+      - name: Test
         shell: pwsh
         run: |
           $tests = 'tests/SlotMixer.Tests/SlotMixer.Tests.csproj'

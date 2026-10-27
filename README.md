@@ -22,9 +22,10 @@ The program speaks **English or Portuguese**, following the Windows display lang
 
 The small icon at the bottom right of a slot is the app's **output type** (headphones, speakers, monitor) in the device's color; the one at the bottom left, a microphone, only shows when the app is pinned to a microphone other than the default. A dimmed icon means the app is closed (the slot is kept).
 
-Two "live" signals, always in **green** (device colors are never green, so they cannot be confused):
+Three "live" signals, always in **green** (device colors are never green, so they cannot be confused):
 
 - **Green circle at the top right**: the app is **using the microphone** right now (like the privacy dot on phones).
+- **Green ring around the slot**: **sound is coming in** through that app's microphone (somebody talking). It gets stronger with the loudness and fades a moment after silence. The sensitivity is the `InputThreshold` setting in `settings.json` (default `0.05`; raise it if a noisy microphone keeps the ring on, lower it if talking quietly does not light it).
 - **Thin green line along the top edge**: the app is **playing sound**; it grows with the loudness. Turn it off in Help and preferences › *Sound indicator on the slots*.
 
 ### Shortcuts per slot

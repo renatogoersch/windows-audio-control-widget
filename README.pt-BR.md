@@ -22,9 +22,10 @@ O programa fala **português ou inglês**, conforme o idioma de exibição do Wi
 
 O ícone pequeno no canto inferior direito do slot é o **tipo da saída** do app (fone, caixa de som, monitor), na cor do dispositivo; o do canto inferior esquerdo, um microfone, só aparece quando o app está fixado em um microfone diferente do padrão. Slot com ícone esmaecido = app fechado (a alocação é mantida).
 
-Dois sinais "ao vivo", sempre em **verde** (a cor dos dispositivos nunca é verde, para não haver confusão):
+Três sinais "ao vivo", sempre em **verde** (a cor dos dispositivos nunca é verde, para não haver confusão):
 
 - **Círculo verde no canto superior direito**: o app está **usando o microfone** agora (como o ponto de privacidade dos celulares).
+- **Anel verde ao redor do slot**: está **entrando som** pelo microfone daquele app (alguém falando). Fica mais forte com o volume e some alguns instantes depois do silêncio. A sensibilidade é a configuração `InputThreshold` do `settings.json` (padrão `0.05`; suba se um microfone ruidoso mantiver o anel aceso, desça se falar baixo não o acender).
 - **Linha verde fina na borda de cima**: o app está **tocando som**; ela cresce com o volume. Desliga em Ajuda e preferências › *Indicador de som nos slots*.
 
 ### Atalhos por slot
