@@ -837,7 +837,9 @@ internal sealed partial class WidgetWindow : Window
         _settings.ShowOn = string.Equals(_settings.ShowOn, "all", StringComparison.OrdinalIgnoreCase) ? "primary" : "all";
         _settings.Save();
         s_primary?.SyncSecondaryWindows();
-        ShowHeaderMenu();
+
+        // Turning it off from the widget of another display closes that very widget: the menu comes back on the main one.
+        (All.Contains(this) ? this : s_primary)?.ShowHeaderMenu();
     }
 
     /// <summary>The language row of the headset menu: automatic (the Windows language), Portuguese, English; a click moves to the next.</summary>
@@ -1642,8 +1644,8 @@ internal sealed partial class WidgetWindow : Window
     void Present(Flyout flyout, FrameworkElement anchor, int slot)
     {
         var target = _target ?? Taskbar.Target(_taskbarHwnd);
-        if (target == null)
-            return;
+        if (target == null || PresentationSource.FromVisual(anchor) == null)
+            return;     // no taskbar, or the strip the menu would hang from is already gone
 
         CloseFlyout();
         flyout.Closed += (sender, _) =>

@@ -1,4 +1,4 @@
-﻿using System.Windows.Input;
+using System.Windows.Input;
 using SlotMixer;
 using SlotMixer.Audio;
 using Xunit;
@@ -167,5 +167,25 @@ public class HotkeyTests
         Assert.True(a.SameAs(b));
         Assert.False(a.SameAs(Hotkey.From(ModifierKeys.Alt, Key.Down)));
         Assert.False(a.SameAs(null));
+    }
+}
+
+public class InstallerTests
+{
+    [Theory]
+    [InlineData(@"C:\Users\someone\AppData\Local\Microsoft\WinGet\Packages\RenatoGoersch.SlotMixer_Microsoft.Winget.Source_8wekyb3d8bbwe\SlotMixer\SlotMixer.exe")]
+    [InlineData(@"C:\Users\someone\scoop\apps\slotmixer\current\SlotMixer\SlotMixer.exe")]
+    public void Copies_managed_by_winget_or_scoop_are_recognised(string path)
+    {
+        Assert.True(Installer.IsManagedByPackageManager(path));
+    }
+
+    [Theory]
+    [InlineData(@"C:\Users\someone\Downloads\SlotMixer\SlotMixer.exe")]
+    [InlineData(@"C:\Users\someone\AppData\Local\Programs\SlotMixer\SlotMixer.exe")]
+    [InlineData(null)]
+    public void Other_copies_are_not(string? path)
+    {
+        Assert.False(Installer.IsManagedByPackageManager(path));
     }
 }

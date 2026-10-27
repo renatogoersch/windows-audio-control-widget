@@ -1,0 +1,4 @@
+﻿THIS IS THE SELF-CONTAINED VERSION
+It already includes .NET: nothing to install. The file is bigger because of that.
+On the first run Windows scans the file and it may take up to about 15 seconds to appear;
+after that it opens in under 1 second.

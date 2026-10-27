@@ -1,0 +1,5 @@
+﻿THIS IS THE SMALL VERSION
+It needs the .NET 8 Desktop Runtime (x64) installed. If you do not have it, Windows tells you when you open it.
+Download it at: https://dotnet.microsoft.com/download/dotnet/8.0
+(section ".NET Desktop Runtime", x64 version).
+If you prefer not to install anything, use the "autonomo" (self-contained) version: bigger, but with no requirements.

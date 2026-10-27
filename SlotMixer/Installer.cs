@@ -32,7 +32,16 @@ internal static class Installer
     /// before, or when Windows already starts this very file (someone who set it up by hand knows what they are doing).
     /// </summary>
     public static bool ShouldOffer(Settings settings, IEnumerable<string> args) =>
-        !IsInstalled && !settings.SkipInstallPrompt && !Startup.IsEnabled && !args.Contains("--portable");
+        !IsInstalled && !settings.SkipInstallPrompt && !Startup.IsEnabled && !args.Contains("--portable") && !IsManagedByPackageManager(Environment.ProcessPath);
+
+    /// <summary>
+    /// winget and Scoop put the program in their own folders and update it themselves: a second, self-installed copy
+    /// there would only confuse both. (They are never asked to install, and never replaced by the in-app updater.)
+    /// </summary>
+    public static bool IsManagedByPackageManager(string? exePath) =>
+        exePath != null
+        && (exePath.Contains(@"\Microsoft\WinGet\", StringComparison.OrdinalIgnoreCase)
+            || exePath.Contains(@"\scoop\apps\", StringComparison.OrdinalIgnoreCase));
 
     public static MessageBoxResult Ask() => MessageBox.Show(
         L("Instalar o SlotMixer neste computador?\n\n" +

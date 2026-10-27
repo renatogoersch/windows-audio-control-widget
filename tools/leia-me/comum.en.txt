@@ -1,0 +1,61 @@
+SlotMixer
+Switches the audio output and microphone of each app right from the Windows 11 taskbar.
+
+HOW TO USE
+ 1. Take SlotMixer.exe out of the .zip and double-click it. On the first run it offers to install
+    (user folder, no administrator, with a Start menu shortcut). Recommended: answer Yes.
+    Without installing, keep the exe in a fixed folder and do not run it from inside the .zip.
+ 2. The widget appears on the taskbar, left of the clock: the headset icon, the Windows slot
+    (blue logo) and 3 app slots (+).
+ 3. Click an empty slot and choose an app that is open (Chrome, Discord, a game...).
+ 4. Click the app's icon to choose the audio output and microphone for that app only.
+    Scroll the mouse wheel over the icon to adjust the volume; middle-click toggles mute.
+    The small icon in the corner of the slot shows the output type (headphones, speakers, monitor).
+    A green circle at the top = the app is using the microphone. A thin green line along the
+    top edge = the app is playing sound.
+ 5. Windows slot (blue logo, the first one after the headset): controls what Windows uses BY
+    DEFAULT. Every app set to "System default" follows whatever you pick there.
+      - Click: choose the Windows default output and microphone.
+      - Scroll: master volume. Middle-click: master mute.
+      - Right-click: shortcuts (switch default output, master volume, master mute, microphone mute).
+ 6. Right-click an app slot: change app, empty, remove the slot and the SHORTCUTS section:
+      - Switch output: each press moves the app to the next output. The slot flashes (green =
+        switched, red = could not) and a message appears on screen, even over borderless games.
+      - Volume up and Volume down: 5% at a time; holding the key keeps going.
+      - Mute: mutes and unmutes the app.
+    Click the row and press the combination you want (Backspace removes, Esc cancels).
+ 7. Choosing which outputs "Switch output" goes through: in the slot's normal click menu every
+    output has a ↻ icon. Click it (or right-click the row) to take the output out of the cycle.
+ 8. Click the headset to add slots (up to 8). Right-click it for the program menu: profiles,
+    device icons, game/chat balance, move the widget on the taskbar, help and preferences
+    (language, updates, copy diagnostics), start with Windows, install/uninstall and exit.
+ 9. Profiles: right-click the headset > "Save current state as a profile...". A profile stores, for
+    each slot app, its output and microphone, plus the Windows default at that moment. Apply it
+    from the menu or with its own shortcut. In "Manage profiles..." a profile can apply itself
+    when an app opens (a game) or a device connects (the headset), and go back to the previous
+    state when it ends.
+10. Game/chat balance: pick the two apps and three shortcuts (more game, more chat, center) to
+    move the volume between them, like the dial on a headset.
+11. If a device's icon is wrong (a headset showing as speakers, say): right-click the headset >
+    "Device icons..." and click to change the type.
+12. Multiple displays: with more than one display, the headset menu has "Show the widget" to
+    choose between the main one only or all. Messages and menus open on the display you are on.
+13. Control from outside (Stream Deck, AutoHotkey): SlotMixer.exe --cycle 2, --mute windows,
+    --mic-mute, --profile "Game"... or links like slotmixer://cycle/2 (see the README).
+14. Updates: when installed, SlotMixer looks for new versions by itself (every few hours, on the
+    project's GitHub page) and updates when you are not in a game, showing a message before it
+    restarts. Help and preferences > "Check for updates now" / "Update automatically".
+15. Language: English or Portuguese, following the Windows language (change it in Help and preferences).
+16. Something wrong? Help and preferences > "Copy diagnostics" (or "Report a problem...") and
+    paste the text into an issue at github.com/renatogoersch/windows-audio-control-widget.
+17. To uninstall: Windows Settings > Apps > Installed apps > SlotMixer
+    (or "Uninstall..." in the headset menu).
+18. If you open SlotMixer.exe again while it is running, the widget blinks so you can find it.
+
+IF WINDOWS SAYS "Windows protected your PC"
+The program has no paid digital signature. Click "More info" and then "Run anyway". If your
+antivirus complains, the reason is the same.
+
+REQUIREMENTS
+Windows 11 (tested with 3 displays, 125% to 300%). Windows 10 21H2 or newer may work, but was not tested.
+Your settings live in %APPDATA%\SlotMixer (nothing is written to the program folder).

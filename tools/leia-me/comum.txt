@@ -1,4 +1,4 @@
-﻿SlotMixer
+SlotMixer
 Troca a saída de áudio e o microfone de cada app direto da barra de tarefas do Windows 11.
 
 COMO USAR
@@ -9,45 +9,55 @@ COMO USAR
     Windows (logo azul) e 3 slots de app (+).
  3. Clique num slot vazio e escolha um app que esteja aberto (Chrome, Discord, um jogo...).
  4. Clique no ícone do app para escolher a saída de áudio e o microfone só daquele app.
-    Role o mouse sobre o ícone para ajustar o volume do app.
+    Role o mouse sobre o ícone para ajustar o volume; o clique do meio liga e desliga o mudo.
     O ícone pequeno no canto do slot mostra o tipo da saída (fone, caixa de som, monitor).
+    Um círculo verde no canto de cima = o app está usando o microfone. Uma linha verde fina
+    na borda de cima = o app está tocando som.
  5. Slot do Windows (logo azul, o primeiro depois do headset): controla o que o Windows usa POR
     PADRÃO. Todo app que está em "Padrão do sistema" acompanha o que você escolher ali.
       - Clique: escolhe a saída e o microfone padrão do Windows.
-      - Role o mouse: volume geral.
-      - Botão direito: atalhos para alternar a saída padrão, volume geral e mudo geral.
-    O ícone pequeno à direita mostra a saída padrão atual; a engrenagem marca que é o slot do sistema.
+      - Role o mouse: volume geral. Clique do meio: mudo geral.
+      - Botão direito: atalhos (alternar a saída padrão, volume geral, mudo geral, mudo do microfone).
  6. Botão direito num slot de app: trocar app, esvaziar, remover o slot e a seção ATALHOS:
       - Alternar saída: a cada aperto o app vai para a próxima saída. O slot pisca (verde = trocou,
         vermelho = não deu) e um aviso aparece na tela, inclusive em jogos em janela sem borda.
       - Aumentar volume e Diminuir volume: 5% por vez; segurar a tecla continua mudando.
-        Aumentar o volume também tira o mudo.
-      - Mudo: liga e desliga o mudo do app. Enquanto está mudo, o slot mostra um alto-falante
-        vermelho cortado no canto.
+      - Mudo: liga e desliga o mudo do app.
     Clique na linha e aperte a combinação desejada (Backspace remove, Esc cancela).
- 7. Escolher por quais saídas o "Alternar saída" passa: com o atalho definido, o clique normal no
-    slot mostra um ícone ↻ ao lado de cada saída. Clique nele (ou use o botão direito na linha) para
-    tirar a saída do ciclo; ela continua na lista, só o atalho a ignora.
+ 7. Escolher por quais saídas o "Alternar saída" passa: no clique normal no slot, cada saída tem
+    um ícone ↻. Clique nele (ou use o botão direito na linha) para tirar a saída do ciclo.
  8. Clique no headset para adicionar slots (até 8). Botão direito nele abre o menu do programa:
-    perfis, ícones dos dispositivos, mover o widget na barra, iniciar com o Windows, instalar/desinstalar e sair.
-    Para mover o widget: use "Mover o widget na barra…" nesse menu. Ele fica com o contorno azul e você o arrasta
-    só para a esquerda e para a direita (ao soltar, a posição é salva). "Voltar à posição original" o cola de novo ao tray.
- 9. Perfis: botão direito no headset > "Salvar estado atual como perfil…". Um perfil guarda, para cada
-    app dos slots, a saída e o microfone, mais o padrão do Windows do momento. Aplique pelo menu ou
-    por um atalho próprio do perfil.
-10. Se o ícone de algum dispositivo estiver errado (um headset aparecendo como caixa de som, por
+    perfis, ícones dos dispositivos, equilíbrio jogo/chat, mover o widget na barra, ajuda e
+    preferências (idioma, atualizações, copiar diagnóstico), iniciar com o Windows,
+    instalar/desinstalar e sair.
+ 9. Perfis: botão direito no headset > "Salvar estado atual como perfil…". Um perfil guarda, para
+    cada app dos slots, a saída e o microfone, mais o padrão do Windows do momento. Aplique pelo
+    menu ou por um atalho próprio. Em "Gerenciar perfis…" dá para fazer o perfil se aplicar
+    sozinho quando um app abre (um jogo) ou um dispositivo conecta (o headset), e voltar ao
+    estado anterior quando termina.
+10. Equilíbrio jogo/chat: escolha os dois apps e três atalhos (mais jogo, mais chat, centralizar)
+    para mover o volume entre eles, como o dial de um headset.
+11. Se o ícone de algum dispositivo estiver errado (um headset aparecendo como caixa de som, por
     exemplo): botão direito no headset > "Ícones dos dispositivos…" e clique para trocar o tipo.
-11. Para desinstalar: Configurações do Windows > Aplicativos > Aplicativos instalados > SlotMixer
+12. Vários monitores: com mais de um monitor, o menu do headset tem "Mostrar o widget" para
+    escolher entre só o principal ou todos. Avisos e menus abrem no monitor onde você está.
+13. Controle de fora (Stream Deck, AutoHotkey): SlotMixer.exe --cycle 2, --mute windows,
+    --mic-mute, --profile "Jogo"... ou links como slotmixer://cycle/2 (veja o README).
+14. Atualizações: instalado, o SlotMixer procura versões novas sozinho (a cada poucas horas, na
+    página do projeto no GitHub) e se atualiza quando você não está em jogo, mostrando um aviso
+    antes de reiniciar. Ajuda e preferências > "Verificar atualizações agora" /
+    "Atualizar automaticamente".
+15. Idioma: português ou inglês, conforme o idioma do Windows (dá para trocar em Ajuda e preferências).
+16. Algo deu errado? Ajuda e preferências > "Copiar diagnóstico" (ou "Reportar um problema…") e
+    cole o texto numa issue em github.com/renatogoersch/windows-audio-control-widget.
+17. Para desinstalar: Configurações do Windows > Aplicativos > Aplicativos instalados > SlotMixer
     (ou "Desinstalar…" no menu do headset).
-12. Se abrir o SlotMixer.exe de novo com ele já rodando, o widget pisca para você achá-lo.
-13. Atualizações: instalado, o SlotMixer procura versões novas sozinho (a cada poucas horas, na página do projeto
-    no GitHub) e se atualiza quando você não está em jogo, mostrando um aviso antes de reiniciar. Para forçar ou
-    desligar: botão direito no headset > "Verificar atualizações agora" / "Atualizar automaticamente".
+18. Se abrir o SlotMixer.exe de novo com ele já rodando, o widget pisca para você achá-lo.
 
 SE O WINDOWS AVISAR "O Windows protegeu o seu PC"
 O programa não tem assinatura digital paga. Clique em "Mais informações" e depois em
 "Executar assim mesmo". Se o antivírus reclamar, o motivo é o mesmo.
 
 REQUISITOS
-Windows 11 (testado). O Windows 10 21H2 ou mais novo pode funcionar, mas não foi testado.
+Windows 11 (testado com 3 monitores, de 125% a 300%). O Windows 10 21H2 ou mais novo pode funcionar, mas não foi testado.
 Suas configurações ficam em %APPDATA%\SlotMixer (nada é gravado na pasta do programa).
