@@ -23,6 +23,8 @@ internal sealed class SlotView : HoverBorder
 
     static readonly FontFamily GlyphFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
     static readonly Brush Success = Theme.Solid(0xFF22C55E);
+    static readonly Brush SuccessMid = Theme.Solid(0xCC22C55E);
+    static readonly Brush SuccessSoft = Theme.Solid(0x8022C55E);
     static readonly Brush Failure = Theme.Solid(0xFFEF4444);
     static readonly Brush WindowsBlue = Theme.Solid(0xFF0078D4);
 
@@ -87,20 +89,6 @@ internal sealed class SlotView : HoverBorder
         Foreground = Brushes.White,
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
-    };
-
-    /// <summary>Thin line along the top edge that grows with how loud the app is playing right now.</summary>
-    readonly Border _activityBar = new()
-    {
-        Height = 2,
-        Width = 0,
-        CornerRadius = new CornerRadius(1),
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Top,
-        Margin = new Thickness(0, 0, 0, 0),
-        Visibility = Visibility.Collapsed,
-        IsHitTestVisible = false,
-        Background = Success,
     };
 
     float _activity;
@@ -177,7 +165,6 @@ internal sealed class SlotView : HoverBorder
         grid.Children.Add(_outputChip);
         grid.Children.Add(_inputChip);
         grid.Children.Add(_mutedChip);
-        grid.Children.Add(_activityBar);
         grid.Children.Add(_micDot);
         grid.Children.Add(_inputRing);
         grid.Children.Add(_flash);
@@ -228,6 +215,10 @@ internal sealed class SlotView : HoverBorder
             Width = 15,
             Height = 15,
             CornerRadius = new CornerRadius(5),
+
+            // Room for an outline that is clear until something lights it (the output chip goes green while its app plays).
+            BorderThickness = new Thickness(1.5),
+            BorderBrush = Brushes.Transparent,
             Margin = new Thickness(1, 0, 1, 1),
             HorizontalAlignment = side,
             VerticalAlignment = VerticalAlignment.Bottom,
@@ -275,21 +266,20 @@ internal sealed class SlotView : HoverBorder
     }
 
     /// <summary>
-    /// Shows how loud the app is playing (0..1). Rises at once and falls over a few readings, like a meter; null or
-    /// <paramref name="enabled"/> false hides the line.
+    /// Outlines the output chip in green while the app is playing sound (peak 0..1): the sound comes out of that device.
+    /// Rises at once and falls over a few readings, like a meter; null or <paramref name="enabled"/> false clears it.
     /// </summary>
     public void SetActivity(float? peak, bool enabled)
     {
         _activity = enabled && peak is { } value ? Math.Max(value, _activity * 0.7f) : 0;
 
-        // Five steps: a layered window is redrawn whole on every change, so a smooth bar would cost more than it is worth.
-        var step = _activity > 0.02f ? (int)Math.Ceiling(Math.Min(1f, _activity * 1.8f) * 5) : 0;
+        // Three steps: a layered window is redrawn whole on every change, so a smooth fade would cost more than it is worth.
+        var step = _activity > 0.35f ? 3 : _activity > 0.1f ? 2 : _activity > 0.02f ? 1 : 0;
         if (step == _activityStep)
             return;
 
         _activityStep = step;
-        _activityBar.Visibility = step > 0 ? Visibility.Visible : Visibility.Collapsed;
-        _activityBar.Width = step * 5.6;
+        _outputChip.BorderBrush = step switch { 3 => Success, 2 => SuccessMid, 1 => SuccessSoft, _ => Brushes.Transparent };
     }
 
     /// <summary>
