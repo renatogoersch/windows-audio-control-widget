@@ -3,11 +3,30 @@
   Builds the two release zips into dist\: SlotMixer-requer-dotnet.zip (small, needs the .NET 8 Desktop Runtime) and
   SlotMixer-autonomo.zip (carries the runtime).
 
+  Two phases: (1) build the two exes, (2) put each in a zip with its readme. Without the optional parameters below the
+  script does exactly that, in that order; they only exist so the release workflow can sign the exes in between.
+
 .PARAMETER ExpectVersion
   When given (for example 1.6.0 or v1.6.0), the build stops unless <Version> in the .csproj is exactly that. The release
   workflow passes the pushed tag here, so a tag and a version that disagree can never produce a release.
+
+.PARAMETER ExeOutDir
+  Also copies the two freshly built exes to this folder as SlotMixer-requer-dotnet.exe and SlotMixer-autonomo.exe
+  (the names the signing request expects).
+
+.PARAMETER NoZips
+  Stops after phase 1 (use with -ExeOutDir); dist\ is left alone.
+
+.PARAMETER SignedExeDir
+  Skips phase 1 and takes SlotMixer-requer-dotnet.exe and SlotMixer-autonomo.exe from this folder (the same two exes,
+  already code-signed) for the zips. Each must be the version being built.
 #>
-param([string]$ExpectVersion)
+param(
+  [string]$ExpectVersion,
+  [string]$ExeOutDir,
+  [switch]$NoZips,
+  [string]$SignedExeDir
+)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -37,9 +56,33 @@ function Publish($selfContained, $folder) {
   }
 }
 
-Publish $false 'publish'
-Publish $true 'publish-selfcontained'
+# ---- phase 1: the two exes ---------------------------------------------------------------------------------------
+if ($SignedExeDir) {
+  $exeLite = Join-Path $SignedExeDir 'SlotMixer-requer-dotnet.exe'
+  $exeFull = Join-Path $SignedExeDir 'SlotMixer-autonomo.exe'
+  foreach ($exe in $exeLite, $exeFull) {
+    if (-not (Test-Path $exe)) { throw "Signed exe not found: $exe" }
+    # The signing step must hand back the build it was given, not some other one.
+    $fileVersion = (Get-Item $exe).VersionInfo.FileVersion
+    if (-not "$fileVersion".StartsWith("$version.")) { throw "$exe is version $fileVersion, expected $version." }
+  }
+  "Using the signed exes from $SignedExeDir"
+}
+else {
+  Publish $false 'publish'
+  Publish $true 'publish-selfcontained'
+  $exeLite = Join-Path $proj 'publish\SlotMixer.exe'
+  $exeFull = Join-Path $proj 'publish-selfcontained\SlotMixer.exe'
+}
 
+if ($ExeOutDir) {
+  New-Item -ItemType Directory -Force $ExeOutDir | Out-Null
+  Copy-Item $exeLite (Join-Path $ExeOutDir 'SlotMixer-requer-dotnet.exe') -Force
+  Copy-Item $exeFull (Join-Path $ExeOutDir 'SlotMixer-autonomo.exe') -Force
+}
+if ($NoZips) { return }
+
+# ---- phase 2: the zips -------------------------------------------------------------------------------------------
 if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 New-Item -ItemType Directory -Force $dist | Out-Null
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -53,11 +96,20 @@ function New-Release($zipName, $exe, $noteFile) {
   $leiame = [IO.File]::ReadAllText((Join-Path $text 'comum.txt'), [Text.Encoding]::UTF8) +
             [IO.File]::ReadAllText((Join-Path $text $noteFile), [Text.Encoding]::UTF8)
   [IO.File]::WriteAllText((Join-Path $dir 'LEIA-ME.txt'), $leiame, $utf8)
+
+  # The English readme is optional: comum.en.txt plus requer-dotnet.en.txt / autonomo.en.txt. Without them, no README.txt.
+  $common = Join-Path $text 'comum.en.txt'
+  $note = Join-Path $text ([IO.Path]::ChangeExtension($noteFile, 'en.txt'))
+  if ((Test-Path $common) -and (Test-Path $note)) {
+    $readme = [IO.File]::ReadAllText($common, [Text.Encoding]::UTF8) + [IO.File]::ReadAllText($note, [Text.Encoding]::UTF8)
+    [IO.File]::WriteAllText((Join-Path $dir 'README.txt'), $readme, $utf8)
+  }
+
   [IO.Compression.ZipFile]::CreateFromDirectory($stage, (Join-Path $dist "$zipName.zip"), [IO.Compression.CompressionLevel]::Optimal, $false)
 }
 
-New-Release 'SlotMixer-requer-dotnet' (Join-Path $proj 'publish\SlotMixer.exe') 'requer-dotnet.txt'
-New-Release 'SlotMixer-autonomo' (Join-Path $proj 'publish-selfcontained\SlotMixer.exe') 'autonomo.txt'
+New-Release 'SlotMixer-requer-dotnet' $exeLite 'requer-dotnet.txt'
+New-Release 'SlotMixer-autonomo' $exeFull 'autonomo.txt'
 Remove-Item (Join-Path $dist '_stage') -Recurse -Force
 
 Get-ChildItem $dist -Filter *.zip | ForEach-Object { '{0}  {1:N1} MB' -f $_.Name, ($_.Length / 1MB) }

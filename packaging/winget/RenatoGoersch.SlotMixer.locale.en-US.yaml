@@ -1,0 +1,35 @@
+# Template: tools/winget-manifest.ps1 fills the double-underscore tokens below from the GitHub Release.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+
+PackageIdentifier: RenatoGoersch.SlotMixer
+PackageVersion: __VERSION__
+PackageLocale: en-US
+Publisher: Renato Goersch
+PublisherUrl: https://github.com/renatogoersch
+PublisherSupportUrl: https://github.com/renatogoersch/windows-audio-control-widget/issues
+Author: Renato Goersch
+PackageName: SlotMixer
+PackageUrl: https://github.com/renatogoersch/windows-audio-control-widget
+License: MIT
+LicenseUrl: https://github.com/renatogoersch/windows-audio-control-widget/blob/main/LICENSE
+Copyright: Copyright (c) 2026 Renato Goersch
+ShortDescription: Windows Audio Control - Widget - a taskbar widget that sets the output, microphone and volume of each app.
+Description: |-
+  SlotMixer is a small widget for the Windows 11 taskbar. Each slot holds a running app (Chrome, Discord, a game) and, with
+  one click, switches the audio output and microphone of that app only; the mouse wheel changes its volume. A fixed Windows
+  slot controls the system default output, microphone and master volume. Global hotkeys, profiles, device-type icons and
+  automatic updates are included.
+Moniker: slotmixer
+Tags:
+- audio
+- microphone
+- mixer
+- per-app-audio
+- sound
+- taskbar
+- volume
+- widget
+- windows-11
+ReleaseNotesUrl: https://github.com/renatogoersch/windows-audio-control-widget/releases/tag/v__VERSION__
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

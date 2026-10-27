@@ -1,12 +1,16 @@
 name: Release
 
 # Pushing a tag like v1.6.1 builds both zips and publishes the GitHub Release; tools/release.ps1 does the tagging.
+#
+# Code signing is optional and OFF unless the repository variable SIGNPATH_ORGANIZATION_ID is set (see docs/signing.md).
+# Without it the steps below behave exactly as before: build the zips, compose the notes, publish.
 on:
   push:
     tags: ['v*.*.*']
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   release:
@@ -18,10 +22,46 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      # ---- unsigned path (the default) ----------------------------------------------------------------------------
       - name: Build the zips (fails when the tag and the csproj version disagree)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID == '' }}
         shell: pwsh
         run: ./tools/build-zips.ps1 -ExpectVersion '${{ github.ref_name }}'
 
+      # ---- signed path: build the exes, sign them with SignPath, then zip the signed ones -------------------------
+      - name: Build the exes (fails when the tag and the csproj version disagree)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        shell: pwsh
+        run: ./tools/build-zips.ps1 -ExpectVersion '${{ github.ref_name }}' -NoZips -ExeOutDir unsigned
+
+      - name: Upload the unsigned exes
+        id: upload-unsigned
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-exes
+          path: unsigned/*.exe
+          if-no-files-found: error
+
+      - name: Sign the exes with SignPath
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Build the zips from the signed exes
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        shell: pwsh
+        run: ./tools/build-zips.ps1 -ExpectVersion '${{ github.ref_name }}' -SignedExeDir signed
+
+      # ---- both paths ---------------------------------------------------------------------------------------------
       - name: Compose the release notes from CHANGELOG.md
         shell: pwsh
         run: ./tools/release-notes.ps1 -Version '${{ github.ref_name }}' | Set-Content release-notes.md -Encoding utf8
